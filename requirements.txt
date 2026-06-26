@@ -1,0 +1,9 @@
+torch==2.11.0+cpu
+numpy
+scipy
+scikit-learn
+matplotlib
+psutil
+mne
+moabb
+PyWavelets
