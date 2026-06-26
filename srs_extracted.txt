@@ -1,0 +1,669 @@
+
+SOFTWARE REQUIREMENTS SPECIFICATION
+Ultra-Fast Distilled Generative Models for Real-Time Edge-Deployed BCIs
+Feasibility-Driven, CPU-Only Internship Version
+BS Artificial Intelligence Student Internship Project
+Version 1.0 | 2026
+TABLE OF CONTENTS
+1. PROJECT FEASIBILITY ANALYSIS
+2. EXECUTIVE SUMMARY
+3. PROBLEM DEFINITION
+4. DATASET SELECTION STRATEGY
+5. FUNCTIONAL REQUIREMENTS
+6. NON-FUNCTIONAL REQUIREMENTS
+7. SYSTEM ARCHITECTURE
+8. AI/ML DESIGN SPECIFICATION
+9. DEVELOPMENT PHASES
+10. REPOSITORY STRUCTURE
+11. LATENCY BENCHMARKING FRAMEWORK
+12. CLOSED-LOOP BCI SIMULATION
+13. EVALUATION METRICS
+14. RISK ANALYSIS & MITIGATION
+15. TECHNICAL INTERVIEW PREPARATION
+16. FINAL IMPLEMENTATION CHECKLIST
+1. PROJECT FEASIBILITY ANALYSIS
+This section analyzes the original research proposal against real-world internship constraints and determines what is realistic to implement.
+1.1 Original Proposal Assessment
+The original proposal aims to create 'ultra-fast distilled generative models for real-time edge deployment.' The core objectives are:
+Latency characterization of Diffusion Models for EEG denoising
+Knowledge distillation framework for model compression
+Consistency model approaches for faster sampling
+Edge hardware optimization (Jetson, TPU, etc.)
+Closed-loop BCI validation with real hardware
+1.2 Feasibility Assessment Matrix
+Objective
+Feasibility
+CPU-Only
+Recommendation
+EEG Preprocessing
+✓ FULLY REALISTIC
+✓ YES
+REQUIRED - Core foundation
+Baseline Denoising
+✓ FULLY REALISTIC
+✓ YES
+REQUIRED - Comparison point
+Tiny Diffusion Model
+◑ PARTIAL
+◑ SLOW
+CORE - With simulated batching
+Knowledge Distillation
+✓ FULLY REALISTIC
+✓ YES
+REQUIRED - Main compression method
+Consistency Models
+✗ NOT REALISTIC
+✗ VERY SLOW
+SKIP - Research-level complexity
+Real Edge Hardware
+✗ IMPOSSIBLE
+N/A
+SIMULATE - Desktop deployment sim
+Real BCI Hardware
+✗ IMPOSSIBLE
+N/A
+SIMULATE - Closed-loop sim with datasets
+
+1.3 Key Findings
+Diffusion models WILL train on CPU, but very slowly (expect 1-4 samples per second)
+Distillation is the ONLY practical compression method for CPU-only
+Consistency models require too much GPU-optimized theory for internship
+Real hardware access is NOT available—simulation is the realistic path
+Success requires strict scope management and early validation
+1.4 Three Project Versions Defined
+🔴 MVP Version (Minimum to Demonstrate Concept)
+Minimum viable proof of concept. Can complete in 3-4 weeks on CPU.
+EEG preprocessing pipeline (filtering, artifact removal)
+Baseline denoising (Butterworth filter vs. Wavelet)
+Small diffusion model (10-step sampling, trained on subset)
+Simple distillation (1-step student model)
+Latency comparison chart
+Simulated closed-loop pipeline
+Outcome: 'Proof of concept that diffusion models CAN be distilled on CPU'
+🟡 Internship Version (Most Likely to Impress Evaluators)
+Production-quality internship project. Can complete in 6-8 weeks on CPU.
+Complete EEG preprocessing (4-5 filtering methods)
+Multiple baselines (Butterworth, Wavelet, Wiener filter)
+Full diffusion model (25-50 steps, fully trained)
+Knowledge distillation with multiple student architectures
+Comprehensive latency benchmarking (inference time, memory, CPU%)
+Closed-loop BCI simulation with motor imagery classification
+Professional documentation, reproducible code, GitHub repo
+Presentation-ready visualizations and results
+Outcome: 'Production-grade distillation framework with real-world BCI validation'
+🟢 Research Version (Would Require GPU + Hardware)
+Advanced research work beyond internship scope.
+Consistency model training (requires GPU for practical speeds)
+Real Jetson Nano / Edge TPU deployment
+Actual EEG hardware (Emotiv, OpenBCI, etc.)
+Real-time closed-loop BCI demonstration
+Novel architectural improvements
+Published paper submission
+Status: Defer to PhD research, use internship as foundation.
+2. EXECUTIVE SUMMARY
+2.1 Project Goal
+Develop and validate a knowledge distillation framework that compresses Diffusion Models into lightweight neural networks for real-time EEG signal denoising on CPU-only hardware, with simulated deployment validation on a closed-loop BCI pipeline.
+2.2 Business & Research Value
+Addresses the GPU scarcity problem in ML research (many students/orgs lack GPUs)
+Makes generative AI accessible for edge BCI applications
+Demonstrates practical ML engineering (not just theory)
+Produces reusable benchmarking framework for future research
+Direct application: low-power assistive devices (wheelchairs, prosthetics)
+2.3 Technical Scope (Internship Version)
+Dataset: BCI Competition IV 2a (EEG motor imagery, publicly available)
+Baseline: Butterworth + Wavelet filters
+Generative Model: Lightweight DDPM-style diffusion (custom, CPU-optimized)
+Distillation: CNN + Autoencoder student models
+Validation: Latency benchmarking + simulated closed-loop classification
+Deliverables: Code, documentation, results, presentation
+2.4 Success Criteria (Internship Evaluation)
+Denoising model achieves SNR improvement of 3-5 dB vs. baseline
+Distilled model runs inference in <50ms on CPU (acceptable latency)
+End-to-end closed-loop classification accuracy ≥75% on benchmark dataset
+Code is reproducible and documented professionally
+Presentation clearly explains the research contribution
+3. PROBLEM DEFINITION
+3.1 The Central Challenge
+Brain-computer interfaces (BCIs) that help paralyzed or severely disabled individuals require real-time processing: acquire EEG signal → denoise → classify → respond, all within milliseconds. Generative models like Diffusion Models excel at denoising but require hundreds of sequential forward passes, making them impractical for real-time, resource-constrained devices.
+3.2 Why Current Approaches Fail on CPU-Only Hardware
+Diffusion Models Are Slow
+Standard DDPM requires 1000 forward passes for full quality image generation
+Even 10-50 steps takes seconds per sample on CPU (vs milliseconds on GPU)
+Inference latency: 5-10 seconds per EEG window is UNACCEPTABLE for closed-loop BCIs
+Memory overhead: Full model + noise schedules require 2-4 GB RAM
+Edge Devices Are Constrained
+Jetson Nano, mobile SoCs, and embedded processors have 2-8GB RAM total
+Typical BCI systems must run on <500mW power budget (battery constraints)
+Real GPU-like compute is unavailable in many research settings
+Knowledge Distillation Is The Only Practical Compression Method
+Quantization: Loses too much quality for critical medical signals
+Pruning: Requires careful architecture redesign (time-consuming)
+Distillation: Train a small model to mimic the large one's outputs
+  ◦ Preserves signal quality
+  ◦ Achieves 10-100x speedup
+  ◦ Feasible on CPU (just slower training)
+3.3 Why This Project Matters for BCIs
+Brings state-of-the-art denoising to devices that currently only support classical filters
+Validates that research-grade methods CAN work on constrained hardware
+Creates a reusable framework for future edge BCI deployments
+Directly applicable to: wheelchair control, communication aids, neurorehabilitation
+4. DATASET SELECTION STRATEGY
+4.1 Candidate Datasets Comparison
+Dataset
+Subjects / Sessions
+Channels / Duration
+CPU Suitability
+Recommendation
+BCI Comp IV 2a
+9 subjects, 2 sessions
+22 channels, 3s motor imagery
+✓✓✓ Excellent
+✓ PRIMARY
+BCI Comp IV 2b
+14 subjects, 5 sessions
+3 channels, 5s motor imagery
+✓✓✓ Excellent
+◑ Secondary
+PhysioNet Motor
+109 subjects, 1 sess
+64 channels, 4s tasks
+◑ Moderate
+◑ Augment
+SEED Dataset
+15 subjects, 3 sess
+62 channels, long/var
+◑ Moderate
+✗ (Emotion, not MI)
+
+4.2 Final Dataset Selection: BCI Competition IV 2a
+✓ SELECTED for internship project
+Why BCI Competition IV 2a?
+9 subjects × 2 sessions = 18 independent recordings
+22 EEG channels (covers full scalp, high spatial resolution)
+3-second motor imagery windows (standard, well-studied)
+4 classes: left hand, right hand, feet, tongue (balanced classification task)
+Publicly available, no licensing issues
+Extensively benchmarked in literature (easy to compare)
+Small enough to download/process on CPU quickly
+~1.5 GB total, fits comfortably in memory
+Dataset Statistics
+Total samples: ~432 per subject (216 per session)
+Per-class distribution: ~108 samples/class/subject
+Sampling rate: 250 Hz
+Trials per run: 48 trials × 2 runs/session = 96/session
+Artifact annotations: Provided (eyeblinks, muscle noise)
+Data Download & Licensing
+Source: BCI Laboratory website (http://www.bbci.de/competition/iv/)
+License: Public domain (open access)
+Format: MATLAB .mat files (easily convertible to NumPy)
+5. FUNCTIONAL REQUIREMENTS
+Functional requirements define what the system MUST DO to meet project objectives.
+5.1 Data Pipeline Requirements
+ID
+Requirement
+Priority
+Acceptance Criteria
+FR-101
+Load BCI Competition IV 2a dataset from MATLAB files
+HIGH
+All 9 subjects, all channels loadable; data validated for shape (samples, 22, channels)
+FR-102
+Standardize EEG sampling to 250 Hz with resampling if needed
+HIGH
+Output consistent 250 Hz sample rate across all subjects
+FR-103
+Segmentation of 3-second motor imagery windows
+HIGH
+Extract 750 samples/window (250 Hz × 3s), synchronized with trial markers
+FR-104
+Channel normalization (z-score standardization)
+MEDIUM
+Per-channel mean=0, std=1 computed on training set, applied to all
+FR-105
+Train/validation/test split (80/10/10) with no subject leakage
+HIGH
+No subject appears in multiple sets; reproducible with seed
+5.2 Signal Processing Requirements
+ID
+Requirement
+Priority
+Acceptance Criteria
+FR-201
+Implement Butterworth bandpass filter (4-40 Hz)
+HIGH
+Filter order ≥4, -3dB bandwidth [4-40] Hz, minimal phase distortion
+FR-202
+Implement Wavelet denoising (Daubechies-4)
+HIGH
+Threshold selection via BayesShrink or Stein's Unbiased Risk Estimator
+FR-203
+Implement Wiener filtering as second baseline
+MEDIUM
+Optimal filter for Gaussian signals; compare vs Butterworth/Wavelet
+FR-204
+Noise injection: Add synthetic Gaussian + EMG-like artifacts
+HIGH
+Create training data at SNR levels: 10dB, 15dB, 20dB, clean
+FR-205
+Artifact removal: Detect and flag blink/muscle artifacts
+MEDIUM
+Flag segments with amplitude >200µV or frequency >50Hz noise
+5.3 Diffusion Model Requirements
+ID
+Requirement
+Priority
+Acceptance Criteria
+FR-301
+Implement DDPM-style denoising diffusion model
+HIGH
+Linear noise schedule, cosine scheduling, supports 10-50 sampling steps
+FR-302
+Training loop with noise prediction loss
+HIGH
+MSE(predicted_noise, true_noise); convergence in ≤100 epochs CPU
+FR-303
+Inference: Reverse diffusion sampling
+HIGH
+Support variable step counts (10, 25, 50); measure latency per config
+FR-304
+Model architecture: CPU-optimized (small UNet or MLP)
+HIGH
+Params <1M, inference time <1s per window (50 steps CPU)
+FR-305
+Checkpoint saving/loading for trained models
+MEDIUM
+Model + optimizer state saved; reproducible from checkpoint
+5.4 Distillation Requirements
+ID
+Requirement
+Priority
+Acceptance Criteria
+FR-401
+Knowledge distillation: Train student model to mimic diffusion
+HIGH
+Student MSE < 1.2× teacher MSE on test set
+FR-402
+Implement CNN student architecture (lightweight)
+HIGH
+Params <100K, inference <50ms per window on CPU
+FR-403
+Implement Autoencoder student (bottleneck compression)
+MEDIUM
+Latent dimension 32-64, reconstruction error <1.5× baseline
+FR-404
+Temperature-scaled KL divergence loss for soft targets
+MEDIUM
+T=4, balance with hard target loss (75% soft + 25% hard)
+FR-405
+Hyperparameter sweep: learning rate, distillation loss weights
+MEDIUM
+Test LR∈[1e-4, 1e-2], alpha∈[0.3, 0.9]; report best config
+5.5 Benchmarking Requirements
+ID
+Requirement
+Priority
+Acceptance Criteria
+FR-501
+Latency measurement: Inference time per model per configuration
+HIGH
+Measure 100 iterations; report mean, std, min, max, p95
+FR-502
+Memory profiling: Peak RAM usage during inference
+HIGH
+Record per-model memory; baseline vs distilled; isolated process
+FR-503
+CPU utilization: % CPU, # threads, thermal during inference
+MEDIUM
+psutil monitoring; report per-model utilization profile
+FR-504
+Throughput: Samples/second processing capacity
+MEDIUM
+Simulate continuous streaming; report max sustained throughput
+FR-505
+Comparative benchmark suite with all methods
+HIGH
+Table: Baseline vs Diffusion (10/25/50 steps) vs Distilled (CNN/AE)
+5.6 Closed-Loop BCI Simulation
+ID
+Requirement
+Priority
+Acceptance Criteria
+FR-601
+Implement motor imagery classification (CNN on preprocessed EEG)
+HIGH
+4-class accuracy ≥70% on validation set (BCI Comp IV 2a)
+FR-602
+Pipeline: Preprocess → Denoise → Extract features → Classify
+HIGH
+End-to-end latency <500ms per decision (5 trials/sec)
+FR-603
+Measure denoising impact: Accuracy with vs without denoising
+HIGH
+Report ∆Accuracy (%) for each denoising method
+FR-604
+Simulate closed-loop feedback: Visualize predicted class
+MEDIUM
+Real-time plot of predicted class, confidence, latency timeline
+FR-605
+Artifact handling in loop: Skip flagged trials
+MEDIUM
+Detect artifacts, log, skip classification, track rejection rate
+5.7 Evaluation & Reporting
+ID
+Requirement
+Priority
+Acceptance Criteria
+FR-701
+Produce comprehensive results CSV (model, config, metrics)
+HIGH
+One row per model/config; all metrics: latency, accuracy, memory
+FR-702
+Generate visualizations: latency-quality plots, comparisons
+HIGH
+At least 5 publication-quality plots (PDF/PNG)
+FR-703
+Write technical report with findings and recommendations
+HIGH
+5-10 pages, methods, results, discussion, limitations
+FR-704
+Reproducibility: Code runs with single command; results match
+HIGH
+python run_all_experiments.py produces all results
+FR-705
+Publish results on GitHub with detailed README
+HIGH
+Public repo, clear instructions, documentation, results visible
+6. NON-FUNCTIONAL REQUIREMENTS
+6.1 Performance Requirements
+Requirement
+Target
+Justification
+Inference latency
+<50ms per window
+Acceptable for closed-loop BCI (>20 decisions/sec)
+Model size
+<100MB
+Fits on embedded devices / mobile
+Memory usage (inference)
+<500MB peak
+Runs on devices with 1GB min RAM (Jetson baseline)
+Training time (on CPU)
+<24 hours per model
+Feasible on student laptop overnight
+Throughput (BCI mode)
+≥20 windows/sec
+Real-time capable BCI (10-20 Hz EEG with overlap)
+6.2 Reliability & Robustness
+Model reproducibility: Fixed random seeds ensure identical results
+Graceful handling of missing/corrupted data: Skip invalid subjects, log warnings
+Numerical stability: No NaN/Inf in outputs; error bounds checked
+Cross-subject generalization: Validation on held-out subjects
+6.3 Maintainability & Code Quality
+Python 3.8+, use standard ML libraries (PyTorch, NumPy, SciPy)
+Modular design: Separate functions for data, models, training, eval
+Comprehensive logging: INFO/DEBUG levels, experiment tracking
+Unit tests for critical functions (preprocessing, model inference)
+Type hints on all public functions
+Docstrings following NumPy style
+6.4 Security & Privacy
+Dataset handling: Only public datasets used (no real patient data)
+No hardcoded credentials or API keys
+Reproducible pipeline: No randomness except at seeded RNG points
+6.5 Deployment & Portability
+Code runs on Linux, macOS, Windows (Python cross-platform)
+Requirements.txt pinned versions for reproducibility
+Docker container (optional) for guaranteed environment
+Installation: pip install -r requirements.txt, <5 min setup
+7. SYSTEM ARCHITECTURE
+7.1 High-Level Architecture Overview
+The system follows a classic ML pipeline: Data → Preprocessing → Models → Evaluation → Visualization.
+Architecture Diagram (Mermaid)
+[Mermaid Diagram: See section 7.2 for detailed flow]
+7.2 Data Flow Pipeline
+Step-by-step data transformation:
+1. Raw EEG (BCI Comp IV 2a .mat files) → Load into NumPy arrays
+2. Segmentation & Standardization → 250 Hz, z-score norm, 750-sample windows
+3. Train/Val/Test Split → 80/10/10, no subject leakage
+4. Synthetic Noise Injection → Create 3 SNR levels (10/15/20 dB)
+5. Baseline Denoising → Butterworth, Wavelet, Wiener (CPU)
+6. Diffusion Model Denoising → Trained model, variable steps (10-50)
+7. Distillation → Student models trained on teacher outputs
+8. Feature Extraction → Bandpower, differential entropy, log-power
+9. Classification → CNN motor imagery classifier
+10. Evaluation & Metrics → Latency, accuracy, memory, SNR improvement
+7.3 Training Pipeline
+How models are trained (CPU-optimized):
+Phase 1: Diffusion Training
+  ◦ 100 epochs, batch size 16 (CPU memory limit)
+  ◦ Linear noise schedule (1000 steps), cosine variance adjustment
+  ◦ MSE loss (noise prediction), Adam optimizer LR=0.001
+  ◦ Checkpoint every 10 epochs, save best model
+Phase 2: Distillation Training
+  ◦ Trained diffusion model frozen, inference mode
+  ◦ Student network trained on synthetic teacher outputs
+  ◦ KL divergence (soft targets) + MSE (hard targets)
+  ◦ 200 epochs, smaller batch size (32), LR schedule with warm-up
+7.4 Inference Pipeline
+Real-time deployment scenario:
+Input: EEG window (22 channels, 750 samples)
+Preprocess: Bandpass 4-40 Hz, z-norm per channel
+Denoise: Diffusion or Distilled model (inference only, no backprop)
+Feature Extraction: CSP, power spectral density, log-band power
+Classify: Motor imagery CNN (softmax 4 classes)
+Output: Predicted class, confidence, latency timing
+Measure: End-to-end wall-clock time <50ms
+7.5 Component Interaction Diagram
+(Conceptual; full Mermaid syntax diagrams in separate document)
+[Data Loader] → [Preprocessor] → [Noise Injector]
+[Diffusion Model] ← [Trainer] ← [Preprocessor]
+[Student Model] ← [Distillation Trainer] ← [Diffusion Model (frozen)]
+[Test Evaluator] → [Latency Monitor] → [Results CSV]
+[Closed-Loop Simulator] → [Motor Imagery Classifier] → [Performance Reporter]
+8. AI/ML DESIGN SPECIFICATION
+8.1 Baseline Approaches (Classical Filtering)
+Approach 1: Butterworth Bandpass Filter
+Type: IIR recursive filter
+Frequency range: 4-40 Hz (motor imagery band)
+Order: 4
+Pros: Fast (real-time capable), numerically stable, well-understood
+Cons: Phase distortion, no adaptive properties
+Implementation: scipy.signal.butter + lfilter
+Expected SNR improvement: 2-3 dB
+Approach 2: Wavelet Denoising (Daubechies-4)
+Type: Nonlinear denoising via wavelet thresholding
+Decomposition levels: 4-5
+Threshold selection: BayesShrink (SURE principle)
+Pros: Adaptive, preserves sharp features, handles non-stationary noise
+Cons: Slower than Butterworth, threshold selection critical
+Implementation: pywt.wavedec + threshold
+Expected SNR improvement: 3-4 dB
+Approach 3: Wiener Filtering
+Type: Optimal linear filter for known signal + noise
+Assumes: Gaussian signal + noise, known power spectra
+Pros: Mathematically optimal under Gaussian assumptions
+Cons: Requires noise PSD estimation, not adaptive
+Expected SNR improvement: 3-3.5 dB
+8.2 Diffusion Model Design
+Architecture: Lightweight UNet-1D
+Input: (Batch, 1 channel, 750 samples) at timestep t
+Conditioning: Noise level embedding t (sinusoidal encoding)
+Layers:
+  ◦ Conv1d(1 → 64, kernel 3) + ReLU
+  ◦ Residual block × 3 with skip connections
+  ◦ Attention at deepest layer (optional, ~50K params)
+  ◦ Conv1d transpose to 1 channel output
+Total parameters: ~450K (very small by modern standards)
+Noise Schedule
+Type: Linear schedule from β_start=0.0001 to β_end=0.02
+Timesteps T: 1000 (training), 10-50 (inference)
+Variance preservation: Cosine schedule adjustment
+Rationale: Empirically works well for EEG, simple to implement
+Training Objective
+Loss: L(θ) = E_t,x [||ε_θ(x_t, t) - ε||²]  (noise prediction)
+Optimizer: Adam, LR=0.001, no weight decay
+Batch size: 16 (CPU memory constraint)
+Epochs: 100
+Training time estimate: 12-18 hours on CPU
+Inference Process
+Reverse diffusion sampling (Euler method):
+  x_{t-1} = (1/√α_t) * x_t + (β̃_t / √(1 - ᾱ_t)) * ε_θ(x_t, t)
+Steps: Test with 10, 25, 50 (trade-off latency vs quality)
+Guidance: None (unconditional), could add classifier-free guidance for future
+8.3 Distillation Design
+Student Architecture Option 1: Small CNN
+Input: (1, 750)
+Conv1d(1 → 32, kernel 5) + ReLU + MaxPool1d(2)
+Conv1d(32 → 64, kernel 5) + ReLU + MaxPool1d(2)
+Flatten → Dense(256) + ReLU + Dropout(0.2)
+Dense(750)  [output same shape as input]
+Total params: ~85K, inference latency <20ms on CPU
+Student Architecture Option 2: Autoencoder
+Encoder: Conv1d(1→16→32) with stride=2
+Bottleneck: 64-dim latent vector
+Decoder: ConvTranspose1d(32→16→1) mirror encoder
+Total params: ~45K, ultra-lightweight
+Advantage: Unsupervised pretraining possible, interpretable latent
+Distillation Training
+Temperature-scaled KL divergence:
+  L_distill = KL(softmax(teacher/T), softmax(student/T))
+Combined loss: 0.75 * L_distill + 0.25 * L_hard
+Optimizer: Adam LR=0.0005, schedule decay every 50 epochs
+Epochs: 200 (slower convergence, more careful training needed)
+Training time: 8-12 hours on CPU
+8.4 Justification of Choices
+Why DDPM over GANs/VAEs for this project?
+GANs: Mode collapse, training instability (bad for CPU-constrained research)
+VAEs: Blurry reconstructions due to KL regularization (SNR loss)
+DDPM: Stable training, empirically high-quality outputs, proven on medical signals
+Cost: Slow inference, but acceptable after distillation
+Why Distillation over Quantization?
+Quantization: 4-8 bit precision causes significant SNR loss on EEG
+Distillation: Can achieve 10-100x speedup with minimal quality loss
+CPU-friendly: Distillation only requires training once, inference is native Python
+Why No Consistency Models?
+Consistency models offer single-step generation (theoretical speedup)
+But: Training requires GPU-scale optimization, not feasible on CPU
+Distillation is mature, proven, CPU-compatible solution
+Can always add consistency models in future work section
+8.5 Model Comparison Table
+Model
+Latency
+SNR Gain
+CPU Time
+Practical?
+Butterworth Filter
+~1ms
+2-3 dB
+N/A
+✓✓✓
+Wavelet Denoise
+~5ms
+3-4 dB
+N/A
+✓✓✓
+Diffusion (50 steps)
+~500ms
+4-5 dB
+12-18h
+◑
+Distilled (CNN)
+~15ms
+3.5-4.5 dB
+8-12h
+✓✓✓
+9. FINAL IMPLEMENTATION CHECKLIST (ABBREVIATED)
+Complete step-by-step checklist from project start to final demonstration:
+PHASE 0: SETUP (Days 1-2)
+☐ Laptop specs documented (CPU model, RAM, GPU: none)
+☐ Python 3.8+ installed, virtual environment created
+☐ Git repository initialized (GitHub/GitLab)
+☐ requirements.txt created (PyTorch CPU, SciPy, NumPy, Matplotlib)
+☐ Project folder structure created (/data, /src, /models, etc.)
+☐ First commit: empty project with README
+PHASE 1: DATA (Days 3-5)
+☐ BCI Comp IV 2a dataset downloaded
+☐ MATLAB files loaded, converted to NumPy
+☐ Data explorer notebook: visualize raw signals, compute stats
+☐ Train/val/test split implemented (no leakage)
+☐ Data loading pipeline tested end-to-end
+☐ Document: Dataset Analysis (see section 4 above)
+PHASE 2-3: BASELINE (Days 6-10)
+☐ Butterworth filter implemented, tested
+☐ Wavelet denoising implemented (BayesShrink threshold)
+☐ Wiener filter implemented
+☐ Noise injection pipeline (10/15/20 dB)
+☐ SNR/MSE metrics computed for all baselines
+☐ Baseline comparison plot generated
+☐ Baseline latency benchmarked (<5ms)
+PHASE 4-5: DIFFUSION MODEL (Days 11-20)
+☐ UNet-1D architecture implemented (~450K params)
+☐ Noise schedule (linear, cosine adjustment) implemented
+☐ Forward diffusion process coded (add_noise)
+☐ Training loop implemented (100 epochs, batch 16)
+☐ Model training completed (expect 12-18h wall-clock on CPU)
+☐ Loss curve plotted (should decrease monotonically)
+☐ Model checkpoints saved
+☐ Inference implemented (reverse diffusion, 10/25/50 steps)
+☐ Latency measured per step count
+☐ Reconstruction quality computed (MSE, SNR improvement)
+PHASE 6-7: DISTILLATION (Days 21-28)
+☐ Diffusion model frozen (inference mode)
+☐ Student CNN architecture designed & implemented
+☐ Temperature-scaled KL loss implemented
+☐ Distillation training loop (200 epochs)
+☐ Student training completed (expect 8-12h)
+☐ Student inference latency measured (<20ms target)
+☐ Student vs teacher quality compared
+☐ Autoencoder student variant trained (optional)
+PHASE 8: BENCHMARKING (Days 29-32)
+☐ Latency benchmark framework implemented
+☐ All models benchmarked: latency, memory, CPU%
+☐ Results CSV generated (model, config, all metrics)
+☐ Latency-quality trade-off plot created
+☐ Throughput measured (samples/sec)
+☐ Table summarizing all results
+PHASE 9: CLOSED-LOOP SIMULATION (Days 33-37)
+☐ Motor imagery CNN classifier trained
+☐ Motor imagery classification accuracy measured
+☐ Preprocessing → Denoising → Feature extraction → Classification pipeline
+☐ End-to-end latency measured (<500ms per decision)
+☐ Denoising impact measured: ∆Accuracy per method
+☐ Closed-loop simulator created (real-time playback)
+☐ Confusion matrices generated for all configs
+PHASE 10-11: TESTING & POLISH (Days 38-40)
+☐ Unit tests written for critical functions
+☐ Reproducibility verified (random seeds, deterministic)
+☐ Code cleaned, type hints added
+☐ Docstrings written (NumPy format)
+☐ README.md created (setup, usage, results)
+☐ GitHub repo pushed (public, visible)
+☐ Results, plots, CSVs committed
+PHASE 12: PRESENTATION (Days 41-45)
+☐ Technical report written (5-10 pages, methods/results/discussion)
+☐ Presentation slides prepared (main findings, visualizations)
+☐ Demonstration notebook created (walkthrough of pipeline)
+☐ 30 interview questions & answers prepared (see section 15 below)
+☐ Practice presentation 2-3 times
+☐ Submit for internship evaluation
+10. PROJECT SUCCESS METRICS
+🎯 Technical Success
+Baseline denoising achieves 2-4 dB SNR improvement
+Diffusion model trained successfully on CPU
+Distilled model achieves <25ms inference latency
+Distilled model SNR within 1 dB of teacher
+🎯 Evaluation Success
+Closed-loop classification accuracy ≥75% with denoising
+∆Accuracy > 3% improvement from denoising (statistically meaningful)
+All results fully reproducible (same random seed)
+🎯 Professionalism Success
+Code is clean, documented, published on GitHub
+Technical report explains contribution clearly
+Presentation impresses evaluators with depth & completeness
+Can answer all 30 interview questions confidently
+🎯 Timeline Success
+All phases completed in 6-8 weeks (part-time)
+CPU training times acceptable (not exceeding overnight)
+Deliverables submitted on time
+END OF SRS DOCUMENT
+Sections 1-10 above represent the core of the complete SRS.
+Remaining sections (detailed phases, architecture diagrams, interview prep, checklist) available in extended document.

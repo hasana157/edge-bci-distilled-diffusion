@@ -1,9 +1,24 @@
-torch==2.11.0+cpu
-numpy
-scipy
-scikit-learn
-matplotlib
-psutil
-mne
-moabb
-PyWavelets
+# Core ML
+torch>=2.0.0
+torchvision>=0.15.0
+
+# Scientific computing
+numpy>=1.24.0
+scipy>=1.10.0
+PyWavelets>=1.4.0
+
+# Visualization
+matplotlib>=3.7.0
+
+# Monitoring
+psutil>=5.9.0
+
+# ONNX (FR-350: edge simulation)
+onnx>=1.14.0
+onnxruntime>=1.15.0
+
+# EEG / neuroscience (optional for advanced loading)
+# mne>=1.4.0
+
+# Utilities
+tqdm>=4.65.0

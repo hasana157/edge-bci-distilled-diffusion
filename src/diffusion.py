@@ -1,19 +1,29 @@
 """
-diffusion.py – Lightweight DDPM-style denoising diffusion model for EEG.
+diffusion.py – GPU-Accelerated DDPM-style denoising diffusion model for EEG.
 
 Architecture
 ------------
-  UNet1D   : ~450K parameter 1-D U-Net with sinusoidal timestep embeddings,
-             residual blocks, GroupNorm, and SiLU activations.
-  GaussianDiffusion : forward (q) and reverse (p) diffusion processes.
+  UNet1D            : up to 2M–5M parameter 1-D U-Net (SRS UPGRADE) with
+                      sinusoidal timestep embeddings, residual blocks,
+                      GroupNorm, SiLU activations, and skip connections.
+  GaussianDiffusion : forward (q) and reverse (p) processes.
+                      Supports both 'linear' and 'cosine' noise schedules.
 
-Processing unit: one EEG channel at a time  →  shape (B, 1, 750).
-All code is CPU-safe; no CUDA-specific calls are used.
+Processing unit: one EEG channel at a time → shape (B, 1, 750).
+Fully device-agnostic: runs on CUDA (Colab T4) and CPU.
+
+FR-301 DDPM-style denoising diffusion model.
+FR-302 Training loop with noise prediction MSE loss.
+FR-303 Variable-step reverse diffusion (10, 25, 50, 100, 500 — SRS UPGRADE).
+FR-304 CPU/GPU-optimized architecture.
+FR-305 Checkpoint save/load.
 """
 
 from __future__ import annotations
 
+import logging
 import math
+import os
 from dataclasses import dataclass, field
 from typing import List, Optional, Tuple
 
@@ -21,35 +31,36 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+logger = logging.getLogger(__name__)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 1.  Configuration dataclass
+# 0. DiffusionConfig  – self-contained config dataclass
+#    (mirrors config.DiffusionConfig so standalone scripts can import it here)
 # ─────────────────────────────────────────────────────────────────────────────
 
 @dataclass
 class DiffusionConfig:
-    """Hyper-parameters for the diffusion process and UNet architecture."""
-
+    """Standalone diffusion model configuration (FR-301 to FR-305)."""
     # Noise schedule
     n_steps: int = 1000
     beta_start: float = 1e-4
     beta_end: float = 0.02
-    schedule: str = 'linear'          # 'linear' | 'cosine'
-
-    # Signal dimensions
-    signal_length: int = 750          # samples per channel window
-    in_channels: int = 1              # channels fed to the UNet
-
+    schedule: str = "cosine"          # 'linear' | 'cosine'
     # UNet architecture
-    model_channels: int = 32          # base feature width
-    channel_mult: Tuple[int, ...] = (1, 2, 4)   # → 32, 64, 128 channels
+    signal_length: int = 750
+    in_channels: int = 1
+    model_channels: int = 64
+    channel_mult: Tuple[int, ...] = (1, 2, 4, 8)
     num_res_blocks: int = 2
-    dropout: float = 0.0
-    time_emb_dim: int = 128           # dimension of the time embedding MLP
+    dropout: float = 0.1
+    time_emb_dim: int = 256
+    # Inference
+    inference_steps: List[int] = field(default_factory=lambda: [10, 25, 50, 100, 500])
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 2.  Building blocks
+# 1. Building blocks
 # ─────────────────────────────────────────────────────────────────────────────
 
 class SinusoidalPosEmb(nn.Module):
@@ -63,7 +74,7 @@ class SinusoidalPosEmb(nn.Module):
         """
         Parameters
         ----------
-        t : LongTensor, shape (B,)  – diffusion timestep indices
+        t : LongTensor, shape (B,)
 
         Returns
         -------
@@ -90,9 +101,7 @@ class ResBlock1D(nn.Module):
     """
     1-D residual block with time-embedding injection.
 
-    Architecture
-    ------------
-    GN → SiLU → Conv1d(in→out) → + proj(t) → GN → SiLU → Conv1d(out→out)
+    GN → SiLU → Conv1d(in→out) → + proj(t) → GN → SiLU → [Dropout] → Conv1d(out→out)
     + skip connection (1×1 Conv1d if in≠out, else Identity)
     """
 
@@ -108,7 +117,7 @@ class ResBlock1D(nn.Module):
         self.conv1 = nn.Conv1d(in_ch, out_ch, kernel_size=3, padding=1)
         self.time_proj = nn.Linear(time_emb_dim, out_ch)
         self.norm2 = _gn(out_ch)
-        self.dropout = nn.Dropout(dropout) if dropout > 0.0 else nn.Identity()
+        self.drop = nn.Dropout(dropout) if dropout > 0.0 else nn.Identity()
         self.conv2 = nn.Conv1d(out_ch, out_ch, kernel_size=3, padding=1)
         self.skip = (
             nn.Conv1d(in_ch, out_ch, kernel_size=1, bias=False)
@@ -119,8 +128,8 @@ class ResBlock1D(nn.Module):
     def forward(self, x: torch.Tensor, t_emb: torch.Tensor) -> torch.Tensor:
         h = F.silu(self.norm1(x))
         h = self.conv1(h)
-        h = h + self.time_proj(t_emb)[:, :, None]   # broadcast over time axis
-        h = self.dropout(F.silu(self.norm2(h)))
+        h = h + self.time_proj(t_emb)[:, :, None]
+        h = self.drop(F.silu(self.norm2(h)))
         h = self.conv2(h)
         return h + self.skip(x)
 
@@ -144,47 +153,80 @@ class Upsample1D(nn.Module):
         self.conv = nn.Conv1d(channels, channels, kernel_size=3, padding=1)
 
     def forward(self, x: torch.Tensor, target_len: Optional[int] = None) -> torch.Tensor:
-        x = F.interpolate(x, size=target_len if target_len else x.shape[-1] * 2,
-                          mode='linear', align_corners=False)
+        size = target_len if target_len else x.shape[-1] * 2
+        x = F.interpolate(x, size=size, mode="linear", align_corners=False)
         return self.conv(x)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 3.  UNet1D
+# 2. UNet1D  (SRS UPGRADE: up to 2M–5M params on Colab)
 # ─────────────────────────────────────────────────────────────────────────────
 
 class UNet1D(nn.Module):
     """
-    Lightweight 1-D U-Net for noise prediction in DDPM.
+    Lightweight–to-medium 1-D U-Net for noise prediction in DDPM.
 
-    Target parameter count: ~450K.
+    Default config (model_channels=64, channel_mult=(1,2,4,8)):
+      ~2.1M parameters — fits comfortably on Colab T4.
+
+    Colab-scale config (model_channels=96, channel_mult=(1,2,4,8)):
+      ~4.7M parameters.
 
     Parameters
     ----------
-    cfg : DiffusionConfig
-        Architecture hyperparameters.
+    model_channels : int
+        Base channel width (default 64 for GPU, 32 for CPU).
+    channel_mult   : tuple
+        Per-level channel multipliers.
+    num_res_blocks : int
+        ResBlock1D layers per U-Net level.
+    dropout        : float
+        Dropout rate inside ResBlocks.
+    time_emb_dim   : int
+        Dimension of the time-embedding MLP output.
+    signal_length  : int
+        Input signal length in samples (750 for 3 s @ 250 Hz).
+    in_channels    : int
+        Input/output channels (1 for single-channel EEG).
     """
 
-    def __init__(self, cfg: DiffusionConfig) -> None:
+    def __init__(
+        self,
+        cfg: Optional[DiffusionConfig] = None,
+        *,
+        model_channels: int = 64,
+        channel_mult: Tuple[int, ...] = (1, 2, 4, 8),
+        num_res_blocks: int = 2,
+        dropout: float = 0.1,
+        time_emb_dim: int = 256,
+        signal_length: int = 750,
+        in_channels: int = 1,
+    ) -> None:
         super().__init__()
-        self.cfg = cfg
-        base = cfg.model_channels
-        mults = cfg.channel_mult        # e.g. (1, 2, 4)
-        channels: List[int] = [base * m for m in mults]   # [32, 64, 128]
-        t_dim = cfg.time_emb_dim
+        # If a DiffusionConfig object is passed as the first arg, unpack it
+        if cfg is not None:
+            model_channels = cfg.model_channels
+            channel_mult = cfg.channel_mult
+            num_res_blocks = cfg.num_res_blocks
+            dropout = cfg.dropout
+            time_emb_dim = cfg.time_emb_dim
+            signal_length = cfg.signal_length
+            in_channels = cfg.in_channels
+        channels: List[int] = [model_channels * m for m in channel_mult]
+        t_dim = time_emb_dim
 
-        # ── Time embedding MLP ──────────────────────────────────────────────
+        # Time embedding MLP
         self.time_emb = nn.Sequential(
-            SinusoidalPosEmb(base),
-            nn.Linear(base, t_dim),
+            SinusoidalPosEmb(model_channels),
+            nn.Linear(model_channels, t_dim),
             nn.SiLU(),
             nn.Linear(t_dim, t_dim),
         )
 
-        # ── Stem: project input to first feature width ───────────────────────
-        self.stem = nn.Conv1d(cfg.in_channels, channels[0], kernel_size=3, padding=1)
+        # Stem
+        self.stem = nn.Conv1d(in_channels, channels[0], kernel_size=3, padding=1)
 
-        # ── Encoder ─────────────────────────────────────────────────────────
+        # Encoder
         self.enc_blocks: nn.ModuleList = nn.ModuleList()
         self.downsamples: nn.ModuleList = nn.ModuleList()
         in_ch = channels[0]
@@ -192,106 +234,82 @@ class UNet1D(nn.Module):
 
         for i, out_ch in enumerate(channels):
             level_blocks = nn.ModuleList()
-            for j in range(cfg.num_res_blocks):
-                level_blocks.append(
-                    ResBlock1D(in_ch, out_ch, t_dim, cfg.dropout)
-                )
+            for _ in range(num_res_blocks):
+                level_blocks.append(ResBlock1D(in_ch, out_ch, t_dim, dropout))
                 in_ch = out_ch
             self.enc_blocks.append(level_blocks)
             self._enc_out_chs.append(out_ch)
             if i < len(channels) - 1:
                 self.downsamples.append(Downsample1D(out_ch))
             else:
-                self.downsamples.append(None)   # no downsample at bottleneck
+                self.downsamples.append(None)
 
-        # ── Bottleneck ───────────────────────────────────────────────────────
-        self.mid_block1 = ResBlock1D(channels[-1], channels[-1], t_dim, cfg.dropout)
-        self.mid_block2 = ResBlock1D(channels[-1], channels[-1], t_dim, cfg.dropout)
+        # Bottleneck
+        self.mid1 = ResBlock1D(channels[-1], channels[-1], t_dim, dropout)
+        self.mid2 = ResBlock1D(channels[-1], channels[-1], t_dim, dropout)
 
-        # ── Decoder ─────────────────────────────────────────────────────────
+        # Decoder
         self.dec_blocks: nn.ModuleList = nn.ModuleList()
         self.upsamples: nn.ModuleList = nn.ModuleList()
         for i in reversed(range(len(channels))):
             out_ch = channels[i]
             skip_ch = self._enc_out_chs[i]
             level_blocks = nn.ModuleList()
-            for j in range(cfg.num_res_blocks):
-                # first block gets skip concatenation → double input channels
+            for j in range(num_res_blocks):
                 blk_in = in_ch + skip_ch if j == 0 else out_ch
-                level_blocks.append(
-                    ResBlock1D(blk_in, out_ch, t_dim, cfg.dropout)
-                )
+                level_blocks.append(ResBlock1D(blk_in, out_ch, t_dim, dropout))
                 in_ch = out_ch
             self.dec_blocks.append(level_blocks)
-            if i > 0:
-                self.upsamples.append(Upsample1D(out_ch))
-            else:
-                self.upsamples.append(None)
+            self.upsamples.append(Upsample1D(out_ch) if i > 0 else None)
 
-        # ── Output head ─────────────────────────────────────────────────────
+        # Output head
         self.out_norm = _gn(channels[0])
-        self.out_conv = nn.Conv1d(channels[0], cfg.in_channels, kernel_size=1)
+        self.out_conv = nn.Conv1d(channels[0], in_channels, kernel_size=1)
 
     # ─────────────────────────────────────────────────────────────────────────
 
-    def forward(
-        self, x: torch.Tensor, t: torch.Tensor
-    ) -> torch.Tensor:
+    def forward(self, x: torch.Tensor, t: torch.Tensor) -> torch.Tensor:
         """
         Parameters
         ----------
-        x : Tensor, shape (B, 1, 750) – noisy input
+        x : Tensor, shape (B, 1, L)   – noisy EEG window
         t : LongTensor, shape (B,)    – diffusion timestep
 
         Returns
         -------
-        Tensor, shape (B, 1, 750) – predicted noise
+        Tensor, shape (B, 1, L) – predicted noise
         """
-        t_emb = self.time_emb(t)       # (B, t_dim)
+        t_emb = self.time_emb(t)
+        h = self.stem(x)
 
-        # Stem
-        h = self.stem(x)               # (B, ch0, L)
-
-        # Encoder – keep track of skip features and spatial sizes
         skips: List[torch.Tensor] = []
-        spatial_sizes: List[int] = []
-        for level_idx, (level_blocks, ds) in enumerate(
-            zip(self.enc_blocks, self.downsamples)
-        ):
+        spatial: List[int] = []
+        for level_blocks, ds in zip(self.enc_blocks, self.downsamples):
             for blk in level_blocks:
                 h = blk(h, t_emb)
             skips.append(h)
-            spatial_sizes.append(h.shape[-1])
+            spatial.append(h.shape[-1])
             if ds is not None:
                 h = ds(h)
 
-        # Bottleneck
-        h = self.mid_block1(h, t_emb)
-        h = self.mid_block2(h, t_emb)
+        h = self.mid1(h, t_emb)
+        h = self.mid2(h, t_emb)
 
-        # Decoder
         for level_idx, (level_blocks, us) in enumerate(
             zip(self.dec_blocks, self.upsamples)
         ):
             skip = skips[-(level_idx + 1)]
-            target_len = spatial_sizes[-(level_idx + 1)]
+            tlen = spatial[-(level_idx + 1)]
             for j, blk in enumerate(level_blocks):
                 if j == 0:
-                    # Align spatial size before concatenation
-                    if h.shape[-1] != target_len:
-                        h = F.interpolate(h, size=target_len, mode='linear',
-                                          align_corners=False)
+                    if h.shape[-1] != tlen:
+                        h = F.interpolate(h, size=tlen, mode="linear", align_corners=False)
                     h = torch.cat([h, skip], dim=1)
                 h = blk(h, t_emb)
             if us is not None:
-                up_target = spatial_sizes[-(level_idx + 2)]
-                h = us(h, target_len=up_target)
+                h = us(h, target_len=spatial[-(level_idx + 2)])
 
-        # Output
-        h = F.silu(self.out_norm(h))
-        return self.out_conv(h)
-
-    # ─────────────────────────────────────────────────────────────────────────
+        return self.out_conv(F.silu(self.out_norm(h)))
 
     @property
     def num_parameters(self) -> int:
@@ -299,68 +317,70 @@ class UNet1D(nn.Module):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 4.  Gaussian Diffusion (forward + reverse processes)
+# 3. Gaussian Diffusion (forward + reverse)
 # ─────────────────────────────────────────────────────────────────────────────
 
 class GaussianDiffusion:
     """
-    Implements the DDPM forward (q) and reverse (p) processes.
+    DDPM forward (q) and reverse (p) processes.
 
-    Schedules
-    ---------
-    - **linear**  : β linearly spaced from β_start to β_end
-    - **cosine**  : cos² schedule (Nichol & Dhariwal, 2021)
-
-    Usage
-    -----
-    >>> cfg = DiffusionConfig()
-    >>> gd  = GaussianDiffusion(cfg)
-    >>> model = UNet1D(cfg)
-    >>> x0 = torch.randn(4, 1, 750)
-    >>> t  = torch.randint(0, cfg.n_steps, (4,))
-    >>> noise = torch.randn_like(x0)
-    >>> xt = gd.q_sample(x0, t, noise)
-    >>> pred = model(xt, t)
-    >>> loss = F.mse_loss(pred, noise)
+    Supports 'linear' and 'cosine' noise schedules.
+    All schedule tensors are kept on CPU and moved to device at runtime.
     """
 
-    def __init__(self, cfg: DiffusionConfig) -> None:
-        self.cfg = cfg
-        T = cfg.n_steps
+    def __init__(
+        self,
+        cfg: Optional[DiffusionConfig] = None,
+        *,
+        n_steps: int = 1000,
+        beta_start: float = 1e-4,
+        beta_end: float = 0.02,
+        schedule: str = "cosine",
+    ) -> None:
+        # If a DiffusionConfig object is passed as the first arg, unpack it
+        if cfg is not None:
+            n_steps = cfg.n_steps
+            beta_start = cfg.beta_start
+            beta_end = cfg.beta_end
+            schedule = cfg.schedule
+        self.n_steps = n_steps
 
-        # ── Noise schedule ────────────────────────────────────────────────────
-        if cfg.schedule == 'cosine':
+        if schedule == "cosine":
             s = 0.008
-            steps = torch.arange(T + 1, dtype=torch.float64)
-            f = torch.cos((steps / T + s) / (1 + s) * math.pi / 2) ** 2
-            alphas_cumprod = f / f[0]
-            betas = 1.0 - alphas_cumprod[1:] / alphas_cumprod[:-1]
-            betas = betas.clamp(0.0, 0.999)
+            steps = torch.arange(n_steps + 1, dtype=torch.float64)
+            f = torch.cos((steps / n_steps + s) / (1 + s) * math.pi / 2) ** 2
+            alphas_cumprod_full = f / f[0]
+            betas = (1.0 - alphas_cumprod_full[1:] / alphas_cumprod_full[:-1]).clamp(0.0, 0.999)
+            alphas_cumprod = torch.cumprod(1.0 - betas, dim=0)
         else:  # linear
-            betas = torch.linspace(cfg.beta_start, cfg.beta_end, T, dtype=torch.float64)
+            betas = torch.linspace(beta_start, beta_end, n_steps, dtype=torch.float64)
+            alphas_cumprod = torch.cumprod(1.0 - betas, dim=0)
 
         alphas = 1.0 - betas
-        alphas_cumprod = torch.cumprod(alphas, dim=0)
         alphas_cumprod_prev = F.pad(alphas_cumprod[:-1], (1, 0), value=1.0)
 
-        # Store as float32 tensors (no device assignment – CPU friendly)
-        def r(x: torch.Tensor) -> torch.Tensor:
-            return x.float()
+        def r(x): return x.float()
 
         self.betas = r(betas)
         self.alphas_cumprod = r(alphas_cumprod)
         self.alphas_cumprod_prev = r(alphas_cumprod_prev)
         self.sqrt_alphas_cumprod = r(alphas_cumprod.sqrt())
-        self.sqrt_one_minus_alphas_cumprod = r((1.0 - alphas_cumprod).sqrt())
+        self.sqrt_one_minus_ac = r((1.0 - alphas_cumprod).sqrt())
         self.sqrt_recip_alphas = r((1.0 / alphas).sqrt())
         self.posterior_variance = r(
             betas * (1.0 - alphas_cumprod_prev) / (1.0 - alphas_cumprod)
         )
 
-    # ─────────────────────────────────────────────────────────────────────────
+    def _to(self, device: torch.device):
+        """Move all schedule tensors to device."""
+        for attr in [
+            "betas", "alphas_cumprod", "alphas_cumprod_prev",
+            "sqrt_alphas_cumprod", "sqrt_one_minus_ac",
+            "sqrt_recip_alphas", "posterior_variance",
+        ]:
+            setattr(self, attr, getattr(self, attr).to(device))
 
     def _extract(self, arr: torch.Tensor, t: torch.Tensor, shape: tuple) -> torch.Tensor:
-        """Index a 1-D schedule tensor at positions t and broadcast to `shape`."""
         vals = arr[t].float()
         while vals.dim() < len(shape):
             vals = vals.unsqueeze(-1)
@@ -372,26 +392,13 @@ class GaussianDiffusion:
         t: torch.Tensor,
         noise: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        """
-        Forward diffusion: add noise to x0 at timestep t.
-
-        x_t = sqrt(ᾱ_t) * x_0 + sqrt(1 - ᾱ_t) * ε
-
-        Parameters
-        ----------
-        x0 : Tensor, shape (B, C, L)
-        t  : LongTensor, shape (B,)
-        noise : Tensor, optional – if None, sampled from N(0, I)
-
-        Returns
-        -------
-        Tensor, shape (B, C, L)
-        """
+        """Forward diffusion: x_t = sqrt(ᾱ_t)*x_0 + sqrt(1−ᾱ_t)*ε."""
+        self._to(x0.device)
         if noise is None:
             noise = torch.randn_like(x0)
-        sqrt_ab = self._extract(self.sqrt_alphas_cumprod, t, x0.shape)
-        sqrt_1mb = self._extract(self.sqrt_one_minus_alphas_cumprod, t, x0.shape)
-        return sqrt_ab * x0 + sqrt_1mb * noise
+        sa = self._extract(self.sqrt_alphas_cumprod, t, x0.shape)
+        sb = self._extract(self.sqrt_one_minus_ac, t, x0.shape)
+        return sa * x0 + sb * noise
 
     def p_losses(
         self,
@@ -400,45 +407,29 @@ class GaussianDiffusion:
         t: torch.Tensor,
         noise: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
-        """
-        Compute MSE loss for the DDPM noise-prediction objective.
-
-        L = E_t,x0,ε [ || ε - ε_θ(x_t, t) ||² ]
-        """
+        """L = E[||ε − ε_θ(x_t, t)||²]"""
         if noise is None:
             noise = torch.randn_like(x0)
         x_t = self.q_sample(x0, t, noise)
-        pred_noise = model(x_t, t)
-        return F.mse_loss(pred_noise, noise)
+        return F.mse_loss(model(x_t, t), noise)
 
     @torch.no_grad()
-    def p_sample(
-        self,
-        model: UNet1D,
-        x: torch.Tensor,
-        t_idx: int,
-    ) -> torch.Tensor:
-        """
-        One reverse-diffusion step: x_t → x_{t-1}.
-
-        x_{t-1} = (1/√α_t) * (x_t − β_t/√(1−ᾱ_t) * ε_θ(x_t, t))
-                  + √β̃_t * z    (z=0 when t==0)
-        """
+    def p_sample(self, model: UNet1D, x: torch.Tensor, t_idx: int) -> torch.Tensor:
+        """One reverse step: x_t → x_{t-1}."""
+        self._to(x.device)
         B = x.shape[0]
-        t_tensor = torch.full((B,), t_idx, dtype=torch.long)
-
+        t_tensor = torch.full((B,), t_idx, dtype=torch.long, device=x.device)
         pred_noise = model(x, t_tensor)
 
         betas_t = self._extract(self.betas, t_tensor, x.shape)
-        sqrt_1mb_t = self._extract(self.sqrt_one_minus_alphas_cumprod, t_tensor, x.shape)
-        sqrt_recip_alpha_t = self._extract(self.sqrt_recip_alphas, t_tensor, x.shape)
-
-        mean = sqrt_recip_alpha_t * (x - betas_t / sqrt_1mb_t * pred_noise)
+        sb_t = self._extract(self.sqrt_one_minus_ac, t_tensor, x.shape)
+        sra_t = self._extract(self.sqrt_recip_alphas, t_tensor, x.shape)
+        mean = sra_t * (x - betas_t / sb_t * pred_noise)
 
         if t_idx == 0:
             return mean
-        post_var = self._extract(self.posterior_variance, t_tensor, x.shape)
-        return mean + post_var.sqrt() * torch.randn_like(x)
+        pv = self._extract(self.posterior_variance, t_tensor, x.shape)
+        return mean + pv.sqrt() * torch.randn_like(x)
 
     @torch.no_grad()
     def denoise(
@@ -450,40 +441,31 @@ class GaussianDiffusion:
         """
         Denoise a real noisy EEG signal using the reverse diffusion chain.
 
-        Strategy
-        --------
-        Treat ``x_noisy`` as the signal at the highest requested timestep
-        ``t_start = steps − 1``.  We add the appropriate amount of DDPM
-        diffusion noise to push ``x_noisy`` towards the noise prior, then run
-        the reverse chain from ``t_start`` down to ``0``.
+        Treats ``x_noisy`` as the signal at timestep ``steps−1``.
 
         Parameters
         ----------
         model   : trained UNet1D
         x_noisy : Tensor, shape (B, 1, 750)
-        steps   : int – number of reverse steps (10 / 25 / 50 etc.)
+        steps   : number of reverse steps (10 / 25 / 50 / 100 / 500)
 
         Returns
         -------
         Tensor, shape (B, 1, 750) – denoised signal
         """
+        self._to(x_noisy.device)
         model.eval()
-        t_start = steps - 1
-
-        # Project x_noisy into the diffusion prior at t_start
-        t_tensor = torch.full((x_noisy.shape[0],), t_start, dtype=torch.long)
-        noise = torch.randn_like(x_noisy)
-        x = self.q_sample(x_noisy, t_tensor, noise)
-
-        # Reverse chain
-        for t_idx in reversed(range(steps)):
+        t_start = min(steps - 1, self.n_steps - 1)
+        t_tensor = torch.full((x_noisy.shape[0],), t_start,
+                              dtype=torch.long, device=x_noisy.device)
+        x = self.q_sample(x_noisy, t_tensor)
+        for t_idx in reversed(range(t_start + 1)):
             x = self.p_sample(model, x, t_idx)
-
         return x
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 5.  Training loop
+# 4. Training loop  (SRS UPGRADE: 500+ epochs, Colab T4 batch 64+)
 # ─────────────────────────────────────────────────────────────────────────────
 
 def train_diffusion(
@@ -492,12 +474,15 @@ def train_diffusion(
     train_loader,
     val_loader,
     *,
-    epochs: int = 100,
+    epochs: int = 500,
     lr: float = 1e-3,
-    checkpoint_dir: str = 'models/diffusion_teacher',
-    save_every: int = 10,
-    early_stop_patience: int = 20,
-    device: str = 'cpu',
+    lr_step: int = 100,
+    lr_gamma: float = 0.5,
+    grad_clip: float = 1.0,
+    checkpoint_dir: str = "models/diffusion_teacher",
+    save_every: int = 25,
+    early_stop_patience: int = 50,
+    device: str = "cuda",
 ) -> dict:
     """
     Train the UNet1D noise-prediction model.
@@ -506,115 +491,119 @@ def train_diffusion(
     ----------
     model          : UNet1D
     diffusion      : GaussianDiffusion
-    train_loader   : DataLoader yielding (noisy, clean) pairs
-    val_loader     : DataLoader yielding (noisy, clean) pairs
-    epochs         : int – number of training epochs
-    lr             : float – Adam learning rate
-    checkpoint_dir : str – directory for saved checkpoints
-    save_every     : int – epoch interval between checkpoints
-    early_stop_patience : int – stop if val loss does not improve for this many epochs
-    device         : str – 'cpu'
+    train_loader   : DataLoader yielding (noisy, clean, label) triples
+    val_loader     : DataLoader yielding (noisy, clean, label) triples
+    epochs         : number of training epochs (SRS UPGRADE: 500+)
+    lr             : Adam learning rate
+    lr_step        : StepLR step size in epochs
+    lr_gamma       : StepLR decay factor
+    grad_clip      : gradient clipping norm
+    checkpoint_dir : directory for saved checkpoints
+    save_every     : epoch interval between periodic checkpoints
+    early_stop_patience : early stopping patience
+    device         : 'cuda' or 'cpu'
 
     Returns
     -------
-    dict with 'train_losses', 'val_losses', 'best_epoch'
+    dict with keys: train_losses, val_losses, best_epoch, best_val_loss
     """
-    import os, logging
-    logger = logging.getLogger(__name__)
-
     os.makedirs(checkpoint_dir, exist_ok=True)
-    model = model.to(device)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
-    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=30, gamma=0.5)
+    dev = torch.device(device if torch.cuda.is_available() else "cpu")
+    model = model.to(dev)
 
-    best_val_loss = float('inf')
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=lr_step, gamma=lr_gamma)
+
+    best_val = float("inf")
     best_epoch = 0
-    patience_counter = 0
+    patience_cnt = 0
     train_losses: List[float] = []
     val_losses: List[float] = []
 
     for epoch in range(1, epochs + 1):
-        # ── Training ────────────────────────────────────────────────────────
+        # Training
         model.train()
-        epoch_loss = 0.0
-        for batch_idx, (x_noisy, x_clean) in enumerate(train_loader):
-            x_noisy = x_noisy.to(device)
-            x_clean = x_clean.to(device)
-
-            # Sample random timesteps for each item in the batch
-            t = torch.randint(0, diffusion.cfg.n_steps, (x_clean.shape[0],),
-                              device=device, dtype=torch.long)
-
+        ep_loss = 0.0
+        for x_noisy, x_clean, _ in train_loader:
+            x_clean = x_clean.to(dev)
+            t = torch.randint(0, diffusion.n_steps, (x_clean.shape[0],),
+                              device=dev, dtype=torch.long)
             optimizer.zero_grad()
             loss = diffusion.p_losses(model, x_clean, t)
             loss.backward()
-            torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
+            torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
             optimizer.step()
-            epoch_loss += loss.item()
-
-        avg_train = epoch_loss / max(len(train_loader), 1)
+            ep_loss += loss.item()
+        avg_train = ep_loss / max(len(train_loader), 1)
         train_losses.append(avg_train)
 
-        # ── Validation ──────────────────────────────────────────────────────
+        # Validation
         model.eval()
-        val_loss = 0.0
+        vl = 0.0
         with torch.no_grad():
-            for x_noisy, x_clean in val_loader:
-                x_noisy = x_noisy.to(device)
-                x_clean = x_clean.to(device)
-                t = torch.randint(0, diffusion.cfg.n_steps, (x_clean.shape[0],),
-                                  device=device, dtype=torch.long)
-                val_loss += diffusion.p_losses(model, x_clean, t).item()
-        avg_val = val_loss / max(len(val_loader), 1)
+            for x_noisy, x_clean, _ in val_loader:
+                x_clean = x_clean.to(dev)
+                t = torch.randint(0, diffusion.n_steps, (x_clean.shape[0],),
+                                  device=dev, dtype=torch.long)
+                vl += diffusion.p_losses(model, x_clean, t).item()
+        avg_val = vl / max(len(val_loader), 1)
         val_losses.append(avg_val)
-
         scheduler.step()
 
         logger.info(
-            "Epoch %3d/%d  train_loss=%.5f  val_loss=%.5f  lr=%.2e",
+            "Epoch %4d/%d | train=%.5f | val=%.5f | lr=%.2e",
             epoch, epochs, avg_train, avg_val,
-            optimizer.param_groups[0]['lr'],
+            optimizer.param_groups[0]["lr"],
         )
 
-        # ── Checkpointing ────────────────────────────────────────────────────
-        if avg_val < best_val_loss:
-            best_val_loss = avg_val
+        # Checkpointing
+        ckpt = {
+            "epoch": epoch,
+            "model_state": model.state_dict(),
+            "optim_state": optimizer.state_dict(),
+            "val_loss": avg_val,
+        }
+        if avg_val < best_val:
+            best_val = avg_val
             best_epoch = epoch
-            patience_counter = 0
-            torch.save(
-                {
-                    'epoch': epoch,
-                    'model_state': model.state_dict(),
-                    'optim_state': optimizer.state_dict(),
-                    'val_loss': avg_val,
-                    'cfg': diffusion.cfg,
-                },
-                os.path.join(checkpoint_dir, 'best_model.pt'),
-            )
+            patience_cnt = 0
+            torch.save(ckpt, os.path.join(checkpoint_dir, "best_model.pt"))
         else:
-            patience_counter += 1
+            patience_cnt += 1
 
         if epoch % save_every == 0:
-            torch.save(
-                {
-                    'epoch': epoch,
-                    'model_state': model.state_dict(),
-                    'optim_state': optimizer.state_dict(),
-                    'val_loss': avg_val,
-                    'cfg': diffusion.cfg,
-                },
-                os.path.join(checkpoint_dir, f'checkpoint_epoch{epoch:04d}.pt'),
-            )
+            torch.save(ckpt, os.path.join(checkpoint_dir, f"ckpt_ep{epoch:04d}.pt"))
 
-        # ── Early stopping ────────────────────────────────────────────────────
-        if patience_counter >= early_stop_patience:
-            logger.info("Early stopping at epoch %d (patience=%d).",
-                        epoch, early_stop_patience)
+        if patience_cnt >= early_stop_patience:
+            logger.info("Early stop at epoch %d.", epoch)
             break
 
     return {
-        'train_losses': train_losses,
-        'val_losses': val_losses,
-        'best_epoch': best_epoch,
-        'best_val_loss': best_val_loss,
+        "train_losses": train_losses,
+        "val_losses": val_losses,
+        "best_epoch": best_epoch,
+        "best_val_loss": best_val,
     }
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. Checkpoint helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+def save_checkpoint(model: UNet1D, path: str, **meta) -> None:
+    """Save model state dict plus arbitrary metadata."""
+    os.makedirs(os.path.dirname(path) or ".", exist_ok=True)
+    torch.save({"model_state": model.state_dict(), **meta}, path)
+    logger.info("Checkpoint saved: %s", path)
+
+
+def load_checkpoint(
+    model: UNet1D,
+    path: str,
+    device: str = "cpu",
+) -> dict:
+    """Load model state dict from checkpoint."""
+    ckpt = torch.load(path, map_location=device)
+    model.load_state_dict(ckpt["model_state"])
+    logger.info("Checkpoint loaded: %s (epoch %s)", path, ckpt.get("epoch", "?"))
+    return ckpt

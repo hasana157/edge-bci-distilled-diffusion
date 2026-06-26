@@ -1,10 +1,51 @@
-venv/
+# Python
 __pycache__/
-*.pyc
-.pytest_cache/
-results/
-models/
-data/
+*.py[cod]
+*$py.class
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.pyo
+
+# Virtual environments
+venv/
+env/
+.venv/
+.env/
+
+# Large data files (download separately — see data/raw/README.md)
+data/raw/*.mat
+data/raw/*.gdf
+data/processed/*.npy
+data/processed/*.npz
+
+# Large model checkpoints (upload to Drive/HuggingFace)
+models/**/*.pt
+models/**/*.pth
+# Keep ONNX files (small)
+!models/onnx/*.onnx
+
+# Jupyter / Colab
+.ipynb_checkpoints/
+*.ipynb
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs (keep experiment.log committed for reproducibility)
+# results/experiment.log   ← intentionally NOT ignored
+
+# Temporary
+*.tmp
+*.bak
 C-/
-srs_extracted.txt
-SRS_BCI_Distillation_Internship*.docx

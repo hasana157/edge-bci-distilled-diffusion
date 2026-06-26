@@ -1,0 +1,42 @@
+SRS vs Proposal — Strict Gap Review
+What to keep, upgrade, add, or remove for Colab GPU version
+
+KEEP SRS is fine, keep as-is
+UPGRADE SRS had CPU limits — now improve for Colab
+ADD Missing from SRS, proposal requires it
+REMOVE CPU-only workaround, no longer needed
+Proposal Deliverable 1 — Latency Characterization
+SRS Section	Status	Action
+FR-501 to FR-505 — Benchmarking framework	KEEP	Already comprehensive. Keep 100-iteration measurement, p95, mean/std.
+Step counts: 10, 25, 50 only	UPGRADE	Add 100 and 500 step configs — feasible on Colab GPU. SRS skipped these due to CPU.
+Latency target: <50ms on CPU	UPGRADE	Change to <10ms on GPU, <50ms on simulated CPU (run both).
+Proposal Deliverable 2 — Distillation Framework
+SRS Section	Status	Action
+FR-401 to FR-405 — Distillation pipeline	KEEP	Core logic is solid. Keep KL loss, temperature scaling, CNN + Autoencoder students.
+Consistency Models — marked "SKIP"	ADD	Proposal explicitly required this. GPU makes it feasible. Add as FR-406: consistency distillation (single-step) alongside regular distillation.
+Model size cap: 450K params (CPU)	UPGRADE	Allow up to 2M–5M param teacher on Colab. Better quality = better distillation signal.
+Training epochs: 200	UPGRADE	Can run 500+ epochs on Colab. Update non-functional requirement for training time.
+Proposal Deliverable 3 — Edge Hardware Optimization
+SRS Section	Status	Action
+Feasibility table: "IMPOSSIBLE"	UPGRADE	Now partially feasible. Export distilled model to ONNX → benchmark with ONNX Runtime CPU inference = credible edge simulation.
+No ONNX / TensorRT section	ADD	Add FR-350: Export trained student model to ONNX format, run inference, report latency/memory. This is the edge proxy deliverable.
+Hardware deployment guidelines	KEEP	Keep as expected outcome — now backed by ONNX results, not just theoretical guidelines.
+Proposal Deliverable 4 — Closed-Loop Validation
+SRS Section	Status	Action
+FR-601 to FR-605 — Pipeline simulation	KEEP	Already well specified. Keep motor imagery classifier, end-to-end latency, artifact handling.
+Accuracy target: ≥75%	UPGRADE	Target ≥80% with GPU-trained models. Update success criteria.
+End-to-end latency: <500ms	UPGRADE	Change primary target to <50ms (GPU path) + report <500ms CPU simulation separately.
+Sections to Remove / Simplify
+SRS Section	Status	Reason
+Section 1.2 Feasibility Matrix "NOT REALISTIC" rows	REMOVE	Consistency models and extended steps are now realistic. Remove the "skip" labels or rewrite as "now feasible via GPU".
+"CPU-Only Internship Version" subtitle	REMOVE	No longer CPU-only. Rename to "GPU-Accelerated Internship Version".
+Training time NFR: <24h on CPU	UPGRADE	Change to: diffusion training <3h on Colab T4, distillation <1h.
+Missing Deliverables vs Proposal
+🔴 Gap 1 — Consistency Models not implemented
+Proposal Objective 2 explicitly says "consistency model approaches". SRS skipped it entirely. Must be added as a separate student architecture option alongside the CNN and Autoencoder.
+🔴 Gap 2 — No ONNX/edge export pipeline
+Proposal Objective 3 requires hardware deployment guidelines backed by real inference profiling. SRS has no code to export or run models in edge-simulation mode. Add ONNX export + CPU inference benchmark.
+🟡 Gap 3 — SNR targets are conservative
+SRS targets 3–5 dB. With a GPU-trained teacher and proper distillation, 5–8 dB is achievable. Update success criteria to reflect what a GPU-trained model can actually deliver.
+🟡 Gap 4 — No quality-latency trade-off curves
+Proposal Deliverable 5 specifically mentions "documented quality-latency trade-off curves". SRS has benchmark tables but no mention of generating the actual curve plots. Add to FR-702

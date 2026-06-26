@@ -1,0 +1,4 @@
+subject,method,snr_db,mse,snr_improvement_db,latency_ms
+1,butterworth,10.5095,0.072098,1.4059,10.4168
+1,wavelet,0.6026,0.854591,-8.5011,1.0915
+1,wiener,9.8956,0.080561,0.7919,0.2841
