@@ -35,6 +35,7 @@ logger = logging.getLogger(__name__)
 def load_subject_mat(mat_path: str) -> Tuple[np.ndarray, np.ndarray]:
     """
     Load one BCI Competition IV 2a .mat file.
+    Supports Graz nested struct format and raw format.
 
     Parameters
     ----------
@@ -52,8 +53,47 @@ def load_subject_mat(mat_path: str) -> Tuple[np.ndarray, np.ndarray]:
     except ImportError:
         raise ImportError("scipy is required for .mat loading. pip install scipy")
 
-    # BCI Comp IV 2a key layout varies between versions; try multiple keys.
-    possible_keys = ["data", "X", "eeg", "s"]
+    # ── Graz nested struct format (typical for raw BCI Competition IV 2a) ──
+    if "data" in mat:
+        data = mat["data"]
+        all_trials = []
+        all_labels = []
+
+        # 3 seconds at 250 Hz (FR-103)
+        fs = 250
+        offset = int(2.0 * fs)  # Start of cue is 2s (500 samples)
+        signal_length = 750
+
+        for run_idx in range(data.shape[1]):
+            run = data[0, run_idx]
+            if 'X' not in run.dtype.names or 'trial' not in run.dtype.names:
+                continue
+
+            X = run['X'][0, 0]                     # Shape: (n_samples, n_channels)
+            trial = run['trial'][0, 0].flatten()   # Shape: (n_trials,)
+
+            if 'y' in run.dtype.names and run['y'][0, 0].size > 0:
+                y = run['y'][0, 0].flatten()       # Shape: (n_trials,)
+            else:
+                y = np.ones(trial.shape[0], dtype=np.int64)
+
+            if trial.size == 0:
+                continue
+
+            for t_idx, pos in enumerate(trial):
+                start = int(pos + offset)
+                end = start + signal_length
+                if end <= X.shape[0]:
+                    # Slice first 22 channels (EEG) and transpose to (n_channels, n_samples)
+                    trial_data = X[start:end, :22].T  # Shape: (22, 750)
+                    all_trials.append(trial_data)
+                    all_labels.append(y[t_idx])
+
+        if len(all_trials) > 0:
+            return np.array(all_trials, dtype=np.float32), np.array(all_labels, dtype=np.int64)
+
+    # ── Fallback/Backward compatibility for pre-sliced datasets ──────────────────
+    possible_keys = ["X", "eeg", "s"]
     label_keys = ["y", "labels", "Y", "classlabel"]
 
     eeg_raw = None
@@ -74,10 +114,8 @@ def load_subject_mat(mat_path: str) -> Tuple[np.ndarray, np.ndarray]:
             f"Available keys: {list(mat.keys())}"
         )
 
-    # Ensure shape is (trials, channels, samples)
     eeg_raw = np.array(eeg_raw, dtype=np.float32)
     if eeg_raw.ndim == 2:
-        # (channels, samples) → add trial dim
         eeg_raw = eeg_raw[np.newaxis, :, :]
 
     if labels_raw is not None:
