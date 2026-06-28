@@ -474,13 +474,14 @@ def train_diffusion(
     train_loader,
     val_loader,
     *,
-    epochs: int = 500,
+    epochs: int = 75,
+    max_epochs_today: Optional[int] = None,
     lr: float = 1e-3,
     lr_step: int = 100,
     lr_gamma: float = 0.5,
     grad_clip: float = 1.0,
-    checkpoint_dir: str = "models/diffusion_teacher",
-    save_every: int = 25,
+    checkpoint_dir: str = "/content/drive/MyDrive/ebc_checkpoints/diffusion_teacher",
+    save_every: int = 5,
     early_stop_patience: int = 50,
     device: str = "cuda",
 ) -> dict:
@@ -515,12 +516,33 @@ def train_diffusion(
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=lr_step, gamma=lr_gamma)
 
     best_val = float("inf")
-    best_epoch = 0
+    start_epoch = 1
     patience_cnt = 0
     train_losses: List[float] = []
     val_losses: List[float] = []
 
-    for epoch in range(1, epochs + 1):
+    # Auto-resume logic
+    latest_ckpt_path = os.path.join(checkpoint_dir, "latest_model.pt")
+    if os.path.exists(latest_ckpt_path):
+        logger.info("Resuming from checkpoint: %s", latest_ckpt_path)
+        ckpt = torch.load(latest_ckpt_path, map_location=dev)
+        model.load_state_dict(ckpt["model_state"])
+        optimizer.load_state_dict(ckpt["optim_state"])
+        if "scheduler_state" in ckpt:
+            scheduler.load_state_dict(ckpt["scheduler_state"])
+        start_epoch = ckpt["epoch"] + 1
+        best_val = ckpt.get("best_val", float("inf"))
+        patience_cnt = ckpt.get("patience_cnt", 0)
+        train_losses = ckpt.get("train_losses", [])
+        val_losses = ckpt.get("val_losses", [])
+        logger.info("Resumed at epoch %d. Best val so far: %.5f", start_epoch, best_val)
+    
+    target_epochs = epochs
+    if max_epochs_today is not None:
+        target_epochs = min(epochs, start_epoch + max_epochs_today - 1)
+        logger.info("Training %d new epochs today (up to epoch %d).", max_epochs_today, target_epochs)
+
+    for epoch in range(start_epoch, target_epochs + 1):
         # Training
         model.train()
         ep_loss = 0.0
@@ -561,7 +583,12 @@ def train_diffusion(
             "epoch": epoch,
             "model_state": model.state_dict(),
             "optim_state": optimizer.state_dict(),
+            "scheduler_state": scheduler.state_dict(),
             "val_loss": avg_val,
+            "best_val": best_val,
+            "patience_cnt": patience_cnt,
+            "train_losses": train_losses,
+            "val_losses": val_losses,
         }
         if avg_val < best_val:
             best_val = avg_val
@@ -571,8 +598,11 @@ def train_diffusion(
         else:
             patience_cnt += 1
 
-        if epoch % save_every == 0:
-            torch.save(ckpt, os.path.join(checkpoint_dir, f"ckpt_ep{epoch:04d}.pt"))
+        if epoch % save_every == 0 or epoch == target_epochs:
+            torch.save(ckpt, os.path.join(checkpoint_dir, "latest_model.pt"))
+            # Optional: keep history of checkpoints
+            # torch.save(ckpt, os.path.join(checkpoint_dir, f"ckpt_ep{epoch:04d}.pt"))
+            logger.info("Saved latest checkpoint at epoch %d to Drive.", epoch)
 
         if patience_cnt >= early_stop_patience:
             logger.info("Early stop at epoch %d.", epoch)

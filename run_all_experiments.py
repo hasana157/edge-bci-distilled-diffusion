@@ -88,6 +88,8 @@ def parse_args():
     p.add_argument("--epochs-distill", type=int, default=None,
                    help="Override distillation epochs")
     p.add_argument("--epochs-classifier", type=int, default=None)
+    p.add_argument("--max-epochs-today", type=int, default=None,
+                   help="Maximum new epochs to train in this session")
     p.add_argument("--batch-size", type=int, default=None)
     p.add_argument("--skip-training", action="store_true",
                    help="Skip training; load existing checkpoints for benchmarking")
@@ -117,17 +119,20 @@ def main():
         cfg.distill.epochs = args.epochs_distill or 200
         cfg.closed_loop.classifier_epochs = args.epochs_classifier or 50
     else:
-        cfg.diffusion.epochs = args.epochs_diffusion or cfg.diffusion.epochs
+        cfg.diffusion.epochs = args.epochs_diffusion or 75
         cfg.diffusion.batch_size = args.batch_size or cfg.diffusion.batch_size
-        cfg.distill.epochs = args.epochs_distill or cfg.distill.epochs
+        cfg.distill.epochs = args.epochs_distill or 75
         cfg.closed_loop.classifier_epochs = args.epochs_classifier or cfg.closed_loop.classifier_epochs
 
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
     os.makedirs("results/plots", exist_ok=True)
-    os.makedirs("models/diffusion_teacher", exist_ok=True)
-    os.makedirs("models/distilled", exist_ok=True)
+    # Changed default checkpoint dirs to Google Drive
+    diff_ckpt_dir = "/content/drive/MyDrive/ebc_checkpoints/diffusion_teacher"
+    distill_ckpt_dir = "/content/drive/MyDrive/ebc_checkpoints/distilled"
+    os.makedirs(diff_ckpt_dir, exist_ok=True)
+    os.makedirs(distill_ckpt_dir, exist_ok=True)
     os.makedirs("models/onnx", exist_ok=True)
     os.makedirs("models/classifier", exist_ok=True)
 
@@ -195,7 +200,7 @@ def main():
     )
     logger.info("Teacher params: %s", f"{teacher.num_parameters:,}")
 
-    teacher_ckpt = os.path.join(diffusion_cfg.checkpoint_dir, "best_model.pt")
+    teacher_ckpt = os.path.join(diff_ckpt_dir, "best_model.pt")
     if args.skip_training and os.path.exists(teacher_ckpt):
         load_checkpoint(teacher, teacher_ckpt, device=cfg.device)
         logger.info("Loaded existing teacher checkpoint.")
@@ -204,12 +209,13 @@ def main():
         diff_history = train_diffusion(
             teacher, diffusion,
             loaders["train"], loaders["val"],
-            epochs=diffusion_cfg.epochs,
+            epochs=cfg.diffusion.epochs,
+            max_epochs_today=args.max_epochs_today,
             lr=diffusion_cfg.lr,
             lr_step=diffusion_cfg.lr_step,
             lr_gamma=diffusion_cfg.lr_gamma,
             grad_clip=diffusion_cfg.grad_clip,
-            checkpoint_dir=diffusion_cfg.checkpoint_dir,
+            checkpoint_dir=diff_ckpt_dir,
             save_every=diffusion_cfg.save_every,
             early_stop_patience=diffusion_cfg.early_stop_patience,
             device=cfg.device,
@@ -236,7 +242,7 @@ def main():
     distill_histories = {}
     for sname, student in students.items():
         logger.info("  Training student: %s (%s params)", sname, f"{student.num_parameters:,}")
-        ckpt_path = os.path.join(cfg.distill.checkpoint_dir, sname, "best_model.pt")
+        ckpt_path = os.path.join(distill_ckpt_dir, sname, "best_model.pt")
         if args.skip_training and os.path.exists(ckpt_path):
             ckpt = torch.load(ckpt_path, map_location=cfg.device)
             student.load_state_dict(ckpt["model_state"])
@@ -247,12 +253,13 @@ def main():
                 student, teacher, diffusion,
                 loaders["train"], loaders["val"],
                 epochs=cfg.distill.epochs,
+                max_epochs_today=args.max_epochs_today,
                 lr=cfg.distill.lr,
                 lr_step=cfg.distill.lr_step,
                 lr_gamma=cfg.distill.lr_gamma,
                 temperature=cfg.distill.temperature,
                 alpha=cfg.distill.alpha,
-                checkpoint_dir=cfg.distill.checkpoint_dir,
+                checkpoint_dir=distill_ckpt_dir,
                 model_name=sname,
                 save_every=cfg.distill.save_every,
                 early_stop_patience=cfg.distill.early_stop_patience,
