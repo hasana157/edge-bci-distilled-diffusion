@@ -273,7 +273,7 @@ def train_student(
     lr_gamma: float = 0.5,
     temperature: float = 4.0,
     alpha: float = 0.75,
-    teacher_steps: int = 25,
+    teacher_steps: int = 5,
     checkpoint_dir: str = "/content/drive/MyDrive/ebc_checkpoints/distilled",
     model_name: str = "student",
     save_every: int = 5,
