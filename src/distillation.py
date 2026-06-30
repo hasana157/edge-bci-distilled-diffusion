@@ -407,10 +407,12 @@ def train_student(
         else:
             patience_cnt += 1
 
-        if epoch % save_every == 0 or epoch == target_epochs:
-            torch.save(ckpt, os.path.join(save_dir, "latest_model.pt"))
-            # torch.save(ckpt, os.path.join(save_dir, f"ckpt_ep{epoch:04d}.pt"))
-            logger.info("[%s] Saved latest checkpoint at epoch %d to Drive.", model_name, epoch)
+        # Always save latest_model.pt every epoch for distillation since it's slow
+        torch.save(ckpt, os.path.join(save_dir, "latest_model.pt"))
+        logger.info("[%s] Saved latest checkpoint at epoch %d to Drive.", model_name, epoch)
+
+        if epoch % save_every == 0:
+            pass # We could keep historical checkpoints here if we wanted
 
         if patience_cnt >= early_stop_patience:
             logger.info("Early stop [%s] at epoch %d.", model_name, epoch)
