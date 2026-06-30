@@ -317,6 +317,7 @@ def train_student(
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=lr_step, gamma=lr_gamma)
 
     best_val = float("inf")
+    best_epoch = 0
     start_epoch = 1
     patience_cnt = 0
     train_losses: List[float] = []
@@ -333,6 +334,7 @@ def train_student(
             scheduler.load_state_dict(ckpt["scheduler_state"])
         start_epoch = ckpt["epoch"] + 1
         best_val = ckpt.get("best_val", float("inf"))
+        best_epoch = ckpt.get("best_epoch", 0)
         patience_cnt = ckpt.get("patience_cnt", 0)
         train_losses = ckpt.get("train_losses", [])
         val_losses = ckpt.get("val_losses", [])
@@ -392,6 +394,7 @@ def train_student(
             "scheduler_state": scheduler.state_dict(),
             "val_loss": avg_val,
             "best_val": best_val,
+            "best_epoch": best_epoch,
             "patience_cnt": patience_cnt,
             "train_losses": train_losses,
             "val_losses": val_losses,
