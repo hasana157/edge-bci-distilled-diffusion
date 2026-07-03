@@ -1,121 +1,101 @@
 # Hardware Deployment Guide
-### Edge-BCI Distilled Diffusion — Edge Inference & Optimization Guide
 
----
+This guide covers exporting distilled EEG denoising students to ONNX and running edge-style inference.
 
-## 1. Overview
-This guide explains how to deploy the distilled EEG denoising student models on edge hardware
-using ONNX Runtime. The exported `.onnx` models support CPU-only inference, making them
-suitable for embedded AI processors, Raspberry Pi, and neuromorphic hardware.
+## Exported Model Files
 
----
+After training and export, the expected files are:
 
-## 2. Exported Model Files
-After training, find the ready-to-deploy models at:
-```
+```text
 models/onnx/
-├── cnn_student.onnx          # ~12 MB, best latency-quality balance
-├── autoencoder_student.onnx  # ~0.5 MB, ultra-lightweight
-└── consistency_student.onnx  # ~5 MB, best single-step quality
+|-- cnn_student.onnx
+|-- autoencoder_student.onnx
+`-- consistency_student.onnx
 ```
 
----
+If these files are absent, train or load the corresponding PyTorch checkpoints and call `export_to_onnx()` from `src/distillation.py`.
 
-## 3. Running Inference (Python)
+## Python Inference
+
 ```python
-import onnxruntime as ort
 import numpy as np
+import onnxruntime as ort
 
-# Load the model
-sess = ort.InferenceSession(
+session = ort.InferenceSession(
     "models/onnx/cnn_student.onnx",
-    providers=["CPUExecutionProvider"]  # Use "CUDAExecutionProvider" for GPU
+    providers=["CPUExecutionProvider"],
 )
 
-# Prepare input: shape (batch, 1, 750), dtype float32
 noisy_eeg = np.random.randn(1, 1, 750).astype(np.float32)
+input_name = session.get_inputs()[0].name
+denoised_eeg = session.run(None, {input_name: noisy_eeg})[0]
 
-# Run inference
-input_name = sess.get_inputs()[0].name
-denoised_eeg = sess.run(None, {input_name: noisy_eeg})[0]
-
-print(f"Input shape:  {noisy_eeg.shape}")
-print(f"Output shape: {denoised_eeg.shape}")  # → (1, 1, 750)
+print(noisy_eeg.shape)
+print(denoised_eeg.shape)
 ```
 
----
+Expected shape for both input and output is `(batch, 1, 750)`.
 
-## 4. Expected Latency by Hardware
-| Hardware | Model | Expected Latency |
+## Hardware Targets
+
+| Hardware | Recommended model | Notes |
 |---|---|---|
-| NVIDIA T4 GPU (Colab) | CNN Student | < 2 ms |
-| Laptop CPU (Intel i7) | CNN Student | ~8–15 ms ✅ |
-| Laptop CPU (Intel i7) | Autoencoder | ~3–5 ms ✅ |
-| Raspberry Pi 4 (ARM) | Autoencoder | ~20–35 ms ✅ |
-| Raspberry Pi 4 (ARM) | CNN Student | ~40–60 ms ⚠️ |
+| Laptop CPU | CNN student | Good default for desktop BCI experiments. |
+| Raspberry Pi or ARM CPU | Autoencoder student | Smaller footprint; validate quality. |
+| NVIDIA Jetson | CNN or consistency student | Try TensorRT FP16 after ONNX export. |
+| Colab or desktop GPU | Any student | Useful for profiling and comparison. |
 
-> **Recommendation for strict edge deployment:** Use `autoencoder_student.onnx` on resource-constrained hardware (Raspberry Pi, microcontrollers). Use `cnn_student.onnx` on laptop/desktop BCI systems.
+Treat these as starting points. Publish measured mean and p95 latency for your exact device.
 
----
+## Dynamic Quantization
 
-## 5. Installation Requirements
-```bash
-pip install onnxruntime numpy
-# For GPU inference:
-pip install onnxruntime-gpu
-```
-
----
-
-## 6. Further Optimization for Neuromorphic / Embedded Processors
-
-### 6.1 INT8 Quantization (reduces model size ~4x, speeds up ~2x)
 ```python
-from onnxruntime.quantization import quantize_dynamic, QuantType
+from onnxruntime.quantization import QuantType, quantize_dynamic
 
 quantize_dynamic(
     "models/onnx/cnn_student.onnx",
     "models/onnx/cnn_student_int8.onnx",
-    weight_type=QuantType.QInt8
+    weight_type=QuantType.QInt8,
 )
 ```
 
-### 6.2 OpenVINO (Intel Neural Compute Stick / NCS2)
-```bash
-mo --input_model models/onnx/cnn_student.onnx --output_dir models/openvino/
-```
+Quantization can reduce model size and latency, but it should be re-evaluated with SNR and closed-loop accuracy metrics.
 
-### 6.3 TensorRT (NVIDIA Jetson / embedded GPU)
+## TensorRT on Jetson
+
 ```bash
 trtexec --onnx=models/onnx/cnn_student.onnx \
         --saveEngine=models/tensorrt/cnn_student.engine \
         --fp16
 ```
 
----
+Record TensorRT version, JetPack version, device power mode, and batch size with results.
 
-## 7. Integration into a BCI Pipeline
+## BCI Pipeline Integration
+
 ```python
-# Minimal real-time BCI denoising loop example
-import onnxruntime as ort
 import numpy as np
+import onnxruntime as ort
 
-sess = ort.InferenceSession("models/onnx/cnn_student.onnx",
-                             providers=["CPUExecutionProvider"])
-input_name = sess.get_inputs()[0].name
+session = ort.InferenceSession(
+    "models/onnx/cnn_student.onnx",
+    providers=["CPUExecutionProvider"],
+)
+input_name = session.get_inputs()[0].name
 
-def denoise_eeg_trial(raw_eeg_750_samples: np.ndarray) -> np.ndarray:
-    """Denoise a single 3-second EEG trial in real time."""
-    x = raw_eeg_750_samples.reshape(1, 1, 750).astype(np.float32)
-    return sess.run(None, {input_name: x})[0].reshape(750)
 
-# Example usage
-raw_trial = np.random.randn(750)   # Replace with real EEG data
-clean_trial = denoise_eeg_trial(raw_trial)
+def denoise_eeg_channel(raw_750_samples: np.ndarray) -> np.ndarray:
+    x = raw_750_samples.reshape(1, 1, 750).astype(np.float32)
+    y = session.run(None, {input_name: x})[0]
+    return y.reshape(750)
 ```
 
----
+For 22-channel trials, apply the single-channel denoiser channel by channel or batch channels as `(22, 1, 750)` if memory allows.
 
-## 8. Open-Source Repository
-All training code, model weights, and this deployment guide are publicly available at:
-**https://github.com/hasana157/edge-bci-distilled-diffusion**
+## Validation Checklist
+
+- Confirm input scaling matches training preprocessing.
+- Run warmup before timing.
+- Report mean and p95 latency.
+- Compare SNR improvement before and after quantization.
+- Re-run closed-loop classifier accuracy after deployment changes.

@@ -1,47 +1,50 @@
 # Models
 
-All trained model checkpoints are stored here.
+This directory contains local model artifacts generated during training and export. Large weights are intentionally ignored by Git.
 
-## Directory Layout
+## Expected Layout
 
-```
+```text
 models/
-├── diffusion_teacher/
-│   ├── best_model.pt          ← Best teacher by val loss
-│   └── ckpt_ep*.pt            ← Periodic checkpoints
-│
-├── distilled/
-│   ├── cnn_student/
-│   │   ├── best_model.pt
-│   │   └── ckpt_ep*.pt
-│   ├── autoencoder_student/
-│   │   ├── best_model.pt
-│   │   └── ckpt_ep*.pt
-│   └── consistency_student/
-│       ├── best_model.pt
-│       └── ckpt_ep*.pt
-│
-├── onnx/
-│   ├── cnn_student.onnx
-│   ├── autoencoder_student.onnx
-│   └── consistency_student.onnx
-│
-└── classifier/
-    └── best_classifier.pt
+|-- diffusion_teacher/
+|   |-- best_model.pt
+|   `-- latest_model.pt
+|-- distilled/
+|   |-- cnn_student/
+|   |   |-- best_model.pt
+|   |   `-- latest_model.pt
+|   |-- autoencoder_student/
+|   |   |-- best_model.pt
+|   |   `-- latest_model.pt
+|   `-- consistency_student/
+|       |-- best_model.pt
+|       `-- latest_model.pt
+|-- onnx/
+|   |-- cnn_student.onnx
+|   |-- autoencoder_student.onnx
+|   `-- consistency_student.onnx
+`-- classifier/
+    `-- best_classifier.pt
 ```
 
-## Loading Checkpoints
+## Loading a Student Checkpoint
 
 ```python
 import torch
+
 from src.distillation import CNNStudent
 
-student = CNNStudent(750)
-ckpt = torch.load("models/distilled/cnn_student/best_model.pt", map_location="cpu")
-student.load_state_dict(ckpt["model_state"])
+student = CNNStudent(signal_length=750)
+checkpoint = torch.load(
+    "models/distilled/cnn_student/best_model.pt",
+    map_location="cpu",
+)
+student.load_state_dict(checkpoint["model_state"])
 student.eval()
 ```
 
-## Note
-Large `.pt` files are not tracked by git (see `.gitignore`).
-Upload to Google Drive or Hugging Face Hub for sharing.
+## Sharing Weights
+
+Do not commit large `.pt` or `.pth` files. Publish checkpoints through GitHub Releases, Google Drive, or Hugging Face Hub, and document the download link plus checksum in this directory.
+
+See `MODEL_CARDS.md` for intended use and limitations.

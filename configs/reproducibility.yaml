@@ -1,0 +1,30 @@
+project: edge-bci-distilled-diffusion
+python: ">=3.10"
+seed: 42
+
+dataset:
+  name: "BCI Competition IV Dataset 2a"
+  subjects: 9
+  channels: 22
+  sampling_rate_hz: 250
+  window_samples: 750
+  split: "subject-level 80/10/10"
+  synthetic_fallback: true
+
+benchmark:
+  warmup_iterations: 10
+  measurement_iterations: 100
+  input_shape: [1, 1, 750]
+  latency_units: "milliseconds"
+  report: ["mean", "std", "min", "max", "p95", "throughput_sps"]
+
+hardware_reference:
+  training_gpu: "NVIDIA T4 on Google Colab"
+  edge_proxy: "ONNX Runtime CPUExecutionProvider"
+  local_smoke_test: "CPU"
+
+artifacts:
+  benchmark_csv: "results/benchmark_results.csv"
+  closed_loop_csv: "results/closed_loop_impact.csv"
+  plots_dir: "results/plots"
+  checkpoint_dir: "models"

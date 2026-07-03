@@ -1,80 +1,100 @@
 # Latency-Fidelity Benchmarking Protocol
-### Edge-BCI Distilled Diffusion — EEG Denoising Benchmark Standard
 
----
+This document defines the standard measurement rules for EBC EEG denoising benchmarks.
 
-## 1. Overview
-This document defines the standardized benchmarking protocol used to evaluate and compare
-EEG denoising models in this project. It is designed to be reproducible and applicable to
-future generative EEG architectures.
+## Hardware Environment
 
----
+Report the exact hardware used with every benchmark table:
 
-## 2. Hardware Environment
-| Component | Specification |
+| Field | Example |
 |---|---|
-| Training GPU | NVIDIA T4 (Google Colab) |
-| Edge Simulation | CPU-only inference via ONNX Runtime |
-| RAM | 12 GB (Colab standard) |
-| OS | Linux (Ubuntu 22.04) |
+| CPU | Intel i7 laptop CPU |
+| GPU | NVIDIA T4 on Google Colab |
+| RAM | 12 GB |
+| OS | Ubuntu 22.04 |
+| Runtime | PyTorch or ONNX Runtime |
+| Provider | CPUExecutionProvider, CUDAExecutionProvider, or PyTorch CUDA |
 
----
+## Dataset
 
-## 3. Dataset
-- **Name:** BCI Competition IV Dataset 2a
-- **Subjects:** 9 participants (A01–A09)
-- **Channels:** 22 EEG channels
-- **Trial Length:** 3 seconds @ 250 Hz = 750 samples per trial
-- **Classes:** 4 motor imagery tasks (left hand, right hand, feet, tongue)
-- **Split:** 80% train / 10% val / 10% test (no subject leakage)
-- **Noise Injection:** Additive Gaussian noise at SNR levels of 10, 15, and 20 dB
+- Dataset: BCI Competition IV Dataset 2a.
+- Subjects: 9 participants.
+- Channels: 22 EEG channels.
+- Window: 3 seconds at 250 Hz, or 750 samples.
+- Classes: left hand, right hand, feet, tongue.
+- Split: subject-level 80/10/10 where possible.
+- Noise: additive Gaussian noise at configured SNR levels, usually 10, 15, and 20 dB.
 
----
+Synthetic fallback data is allowed only for smoke tests.
 
-## 4. Evaluation Metrics
+## Signal Quality Metrics
 
-### 4.1 Signal Quality
-| Metric | Formula | Lower is Better |
+| Metric | Definition | Direction |
 |---|---|---|
-| MSE | Mean Squared Error between denoised and clean signal | ✅ |
-| SNR Improvement (dB) | SNR(denoised) − SNR(noisy) | ❌ (higher is better) |
-| Val Loss | Combined KL + MSE distillation loss | ✅ |
+| MSE | Mean squared error between denoised and clean signal | Lower is better |
+| RMSE | Root mean squared error | Lower is better |
+| SNR improvement | `SNR(denoised) - SNR(noisy)` in dB | Higher is better |
+| Pearson correlation | Correlation between clean and denoised flattened signals | Higher is better |
 
-### 4.2 Inference Latency
-- **Input:** Single EEG trial — shape `(1, 1, 750)`, dtype `float32`
-- **Warmup Runs:** 10 iterations (discarded)
-- **Measurement Runs:** 100 iterations
-- **Reported Stats:** Mean (ms), Std (ms), Min (ms), Max (ms), P95 (ms)
-- **Runtime:** ONNX Runtime 1.x, `CPUExecutionProvider`
+SNR uses mean squared signal and noise power:
 
----
-
-## 5. Models Benchmarked
-| Model | Parameters | Type |
-|---|---|---|
-| Butterworth Filter | N/A | Classical DSP |
-| Wavelet Denoising | N/A | Classical DSP |
-| Wiener Filter | N/A | Classical DSP |
-| Diffusion Teacher (UNet1D) | ~15.9M | Deep Generative |
-| CNN Student | ~3.3M | Distilled Edge |
-| Autoencoder Student | ~45K | Distilled Edge |
-| Consistency Student | ~1.2M | Distilled Edge |
-
----
-
-## 6. Reproducing the Benchmark
-```bash
-# Clone the repository
-git clone https://github.com/hasana157/edge-bci-distilled-diffusion.git
-cd edge-bci-distilled-diffusion
-
-# Run full pipeline including benchmarks
-python run_all_experiments.py --skip-training --batch-size 128
+```text
+SNR = 10 * log10(mean(clean^2) / mean(noise^2))
 ```
-All results are saved to `results/benchmark_results.csv` and plots to `results/plots/`.
 
----
+## Latency Metrics
 
-## 7. Results Reference
-See `results/benchmark_results.csv` for full numeric results and
-`results/plots/quality_latency_curve.png` for the quality-latency trade-off visualization.
+Default settings:
+
+- Input shape: `(1, 1, 750)`.
+- Dtype: `float32`.
+- Warmup: 10 runs discarded.
+- Measurement: 100 runs.
+- Report: mean, standard deviation, min, max, p95, throughput.
+- CUDA timing: synchronize before and after measured calls.
+- CPU timing: use `time.perf_counter()`.
+
+Do not include dataset download, preprocessing cache creation, plotting, or training in inference latency.
+
+## Reproduction Commands
+
+Install dependencies and run smoke tests:
+
+```bash
+pip install -r requirements-dev.txt
+python -m pytest
+```
+
+Run baseline verification:
+
+```bash
+python src/verify_baselines.py
+```
+
+Run a student latency smoke benchmark:
+
+```bash
+python evaluation/latency_benchmark.py --device cpu --iterations 20 --warmup 5
+```
+
+Run the full pipeline on a GPU:
+
+```bash
+python run_all_experiments.py --device cuda --skip-sweep
+```
+
+Run a tiny CPU smoke pipeline:
+
+```bash
+python run_all_experiments.py --device cpu --epochs-diffusion 1 --epochs-distill 1 --epochs-classifier 1 --skip-sweep --batch-size 8
+```
+
+## Required Result Artifacts
+
+- `results/benchmark_results.csv`
+- `results/closed_loop_impact.csv`
+- `results/plots/latency_comparison.png`
+- `results/plots/quality_latency_curve.png`
+- `configs/reproducibility.yaml` or equivalent saved config
+
+Every published benchmark should state whether it used real BCI data or synthetic fallback data.

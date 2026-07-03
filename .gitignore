@@ -1,4 +1,4 @@
-# Python
+# Python bytecode and build artifacts
 __pycache__/
 *.py[cod]
 *$py.class
@@ -16,39 +16,45 @@ env/
 .venv/
 .env/
 
-# Large data files (download separately — see data/raw/README.md)
+# Test and coverage output
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Large data files: download separately, see data/raw/README.md
 data/raw/*.mat
 data/raw/*.gdf
 data/processed/*.npy
 data/processed/*.npz
+C-/
 
-# Large model checkpoints (upload to Drive/HuggingFace)
+# Large model checkpoints: publish through releases or external storage
 models/**/*.pt
 models/**/*.pth
-# Keep ONNX files (small)
+checkpoints/
+*.pt
+
+# Keep small/readable ONNX exports if intentionally added
 !models/onnx/*.onnx
 
-# Jupyter / Colab
+# Jupyter and Colab scratch output
 .ipynb_checkpoints/
 *.ipynb
 
-# IDE
+# IDE/editor files
 .vscode/
 .idea/
 *.swp
 *.swo
 
-# OS
+# OS files
 .DS_Store
 Thumbs.db
 
-# Logs (keep experiment.log committed for reproducibility)
-# results/experiment.log   ← intentionally NOT ignored
+# Logs
+*.log
+!results/README.md
 
-# Temporary
+# Temporary files
 *.tmp
 *.bak
-C-/
-
-checkpoints/
-*.pt

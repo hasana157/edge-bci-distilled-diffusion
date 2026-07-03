@@ -1,25 +1,36 @@
 # Results
 
-Generated experiment outputs — committed for reproducibility.
+This directory stores generated experiment outputs and small reproducibility artifacts.
 
-## Files
+## Committed Files
 
 | File | Description |
-|------|-------------|
-| `benchmark_results.csv` | Full latency / memory / throughput table |
-| `closed_loop_impact.csv` | Denoising impact on classification accuracy |
-| `experiment.log` | Full training and evaluation log |
+|---|---|
+| `baseline_metrics.csv` | Small baseline sanity-check result. |
+| `baseline_comparison.png` | Example waveform comparison for the baseline sanity check. |
+| `README.md` | Result schema and interpretation notes. |
 
-## Plots
+## Generated Files
 
-| File | Description | FR |
-|------|-------------|-----|
-| `plots/quality_latency_curve.png` | Quality (SNR dB) vs Latency — trade-off curve | FR-702, Gap 4 |
-| `plots/latency_comparison.png` | Horizontal bar: inference latency all models | FR-505 |
-| `plots/denoising_impact.png` | Accuracy with / without denoising per method | FR-603 |
-| `plots/confusion_matrix_classifier.png` | 4-class motor imagery confusion matrix | FR-601 |
-| `plots/diffusion_training.png` | Diffusion teacher loss curve | FR-302 |
-| `plots/cnn_student_training.png` | CNN student distillation loss curve | FR-401 |
-| `plots/autoencoder_student_training.png` | AE student training curve | FR-403 |
-| `plots/consistency_student_training.png` | Consistency student training curve | FR-406 |
-| `plots/classifier_training.png` | MI classifier training curve | FR-601 |
+| File | Description |
+|---|---|
+| `benchmark_results.csv` | Latency, memory, throughput, and quality table from the full benchmark suite. |
+| `closed_loop_impact.csv` | Classification accuracy and latency for closed-loop denoising variants. |
+| `experiment.log` | Full run log when `run_all_experiments.py` is executed. |
+| `plots/quality_latency_curve.png` | Quality-latency trade-off curve. |
+| `plots/latency_comparison.png` | Latency comparison across models and baselines. |
+| `plots/denoising_impact.png` | Closed-loop accuracy with and without denoising. |
+| `plots/confusion_matrix_classifier.png` | Motor-imagery classifier confusion matrix. |
+| `plots/*_training.png` | Training curves for teacher, students, and classifier. |
+
+## Interpretation
+
+The committed baseline CSV is a smoke artifact, not a final research claim. Full claims should cite:
+
+- Dataset source and split.
+- Hardware.
+- Dependency versions.
+- Random seed.
+- Benchmark command.
+- Mean and p95 latency.
+- SNR improvement and closed-loop accuracy.

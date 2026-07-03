@@ -28,6 +28,21 @@ from torch.utils.data import DataLoader, Dataset, Subset
 logger = logging.getLogger(__name__)
 
 
+def sanitize_eeg_array(eeg: np.ndarray, *, name: str = "eeg") -> np.ndarray:
+    """
+    Return a float32 EEG array with NaN and infinite values replaced by zero.
+
+    This keeps preprocessing, noise injection, and tests from failing with
+    cryptic downstream numerical errors when a recording contains invalid
+    samples.
+    """
+    arr = np.asarray(eeg, dtype=np.float32)
+    if not np.all(np.isfinite(arr)):
+        logger.warning("%s contains NaN or infinite values; replacing them with 0.", name)
+        arr = np.nan_to_num(arr, nan=0.0, posinf=0.0, neginf=0.0)
+    return arr
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Low-level .mat loader
 # ─────────────────────────────────────────────────────────────────────────────
@@ -173,6 +188,7 @@ def _inject_noise_single(
     rng: np.random.Generator,
 ) -> np.ndarray:
     """Add Gaussian noise at a single target SNR (dB)."""
+    eeg = sanitize_eeg_array(eeg, name="eeg")
     signal_power = np.mean(eeg**2)
     snr_linear = 10 ** (snr_db / 10.0)
     noise_power = signal_power / snr_linear
@@ -251,6 +267,7 @@ def flag_artifacts(
     -------
     mask : np.ndarray[bool], shape (n_trials,)
     """
+    eeg = sanitize_eeg_array(eeg, name="eeg")
     # Amplitude criterion: any sample in the trial exceeds threshold
     amp_mask = np.any(np.abs(eeg) > amplitude_uv_threshold, axis=(1, 2))
     # Power criterion: RMS across all channels > threshold
@@ -276,6 +293,7 @@ class ChannelNormalizer:
         ----------
         eeg : np.ndarray, shape (n_trials, n_channels, n_samples)
         """
+        eeg = sanitize_eeg_array(eeg, name="eeg")
         # Compute per-channel statistics over all trials and samples
         self.mean_ = eeg.mean(axis=(0, 2), keepdims=False)  # (n_channels,)
         self.std_ = eeg.std(axis=(0, 2), keepdims=False)
@@ -285,6 +303,7 @@ class ChannelNormalizer:
     def transform(self, eeg: np.ndarray) -> np.ndarray:
         if self.mean_ is None:
             raise RuntimeError("Call fit() before transform().")
+        eeg = sanitize_eeg_array(eeg, name="eeg")
         return (eeg - self.mean_[np.newaxis, :, np.newaxis]) / self.std_[
             np.newaxis, :, np.newaxis
         ]
@@ -319,7 +338,7 @@ class EEGDataset(Dataset):
     ) -> None:
         super().__init__()
         rng = np.random.default_rng(rng_seed)
-        self.clean = clean_eeg.astype(np.float32)
+        self.clean = sanitize_eeg_array(clean_eeg, name="clean_eeg")
         self.labels = labels.astype(np.int64) - 1   # 0-indexed
         if snr_db is not None:
             self.noisy = inject_noise(self.clean, snr_db, rng)
@@ -357,7 +376,7 @@ class EEGTrialDataset(Dataset):
         labels: np.ndarray,  # (n_trials,)
     ) -> None:
         super().__init__()
-        self.eeg = torch.from_numpy(eeg.astype(np.float32))
+        self.eeg = torch.from_numpy(sanitize_eeg_array(eeg, name="eeg"))
         self.labels = torch.from_numpy(labels.astype(np.int64) - 1)
 
     def __len__(self) -> int:

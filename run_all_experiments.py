@@ -64,6 +64,7 @@ from metrics import compute_all_signal_metrics, compute_all_classification_metri
 # Logging setup
 # ─────────────────────────────────────────────────────────────────────────────
 
+os.makedirs("results", exist_ok=True)
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -97,6 +98,8 @@ def parse_args():
                    help="Skip hyperparameter sweep (FR-405)")
     p.add_argument("--data-dir", default="data/raw",
                    help="Path to BCI Competition IV 2a .mat files")
+    p.add_argument("--checkpoint-root", default=None,
+                   help="Optional checkpoint root; defaults to local models/ folders")
     p.add_argument("--seed", type=int, default=42)
     return p.parse_args()
 
@@ -128,9 +131,12 @@ def main():
     np.random.seed(args.seed)
 
     os.makedirs("results/plots", exist_ok=True)
-    # Changed default checkpoint dirs to Google Drive
-    diff_ckpt_dir = "/content/drive/MyDrive/ebc_checkpoints/diffusion_teacher"
-    distill_ckpt_dir = "/content/drive/MyDrive/ebc_checkpoints/distilled"
+    if args.checkpoint_root:
+        diff_ckpt_dir = os.path.join(args.checkpoint_root, "diffusion_teacher")
+        distill_ckpt_dir = os.path.join(args.checkpoint_root, "distilled")
+    else:
+        diff_ckpt_dir = cfg.diffusion.checkpoint_dir
+        distill_ckpt_dir = cfg.distill.checkpoint_dir
     os.makedirs(diff_ckpt_dir, exist_ok=True)
     os.makedirs(distill_ckpt_dir, exist_ok=True)
     os.makedirs("models/onnx", exist_ok=True)

@@ -20,7 +20,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from diffusion import GaussianDiffusion, UNet1D
+try:
+    from .diffusion import GaussianDiffusion, UNet1D
+except ImportError:  # pragma: no cover - supports direct imports when src/ is on PYTHONPATH.
+    from diffusion import GaussianDiffusion, UNet1D
 
 logger = logging.getLogger(__name__)
 
