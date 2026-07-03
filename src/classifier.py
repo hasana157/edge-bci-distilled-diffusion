@@ -341,8 +341,6 @@ class ClosedLoopSimulator:
         -------
         dict with accuracy, mean_latency_ms, artifact_rejection_rate, predictions, latencies
         """
-        from baselines import flag_artifacts
-
         n_trials = eeg_trials.shape[0]
         predictions, latencies = [], []
         n_artifacts = 0
@@ -352,9 +350,8 @@ class ClosedLoopSimulator:
         for i in range(n_trials):
             window = eeg_trials[i]  # (n_channels, n_samples)
 
-            # FR-605 Artifact check
-            artifact_mask = flag_artifacts(window[np.newaxis], amplitude_uv_threshold=200.0)
-            if artifact_mask[0]:
+            # FR-605 Artifact check (using built-in method)
+            if self._flag_artifact(window):
                 n_artifacts += 1
                 logger.debug("Trial %d flagged as artifact — skipping.", i)
                 predictions.append(-1)  # sentinel
