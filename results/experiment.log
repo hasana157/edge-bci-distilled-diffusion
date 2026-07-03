@@ -1,0 +1,230 @@
+03:22:26 [INFO] run_all: ============================================================
+03:22:26 [INFO] run_all: EBC: EEG BCI Diffusion Distillation — GPU-Accelerated Version
+03:22:26 [INFO] run_all: Device: cuda | Diffusion epochs: 75 | Distill epochs: 75
+03:22:26 [INFO] run_all: ============================================================
+03:22:26 [INFO] run_all: Step 1/9: Building dataloaders …
+03:22:27 [INFO] data_pipeline: Loaded A01T.mat: 288 trials
+03:22:27 [INFO] data_pipeline: Loaded A02T.mat: 288 trials
+03:22:28 [INFO] data_pipeline: Loaded A03T.mat: 288 trials
+03:22:28 [INFO] data_pipeline: Loaded A04T.mat: 288 trials
+03:22:29 [INFO] data_pipeline: Loaded A05T.mat: 288 trials
+03:22:30 [INFO] data_pipeline: Loaded A06T.mat: 288 trials
+03:22:31 [INFO] data_pipeline: Loaded A07T.mat: 288 trials
+03:22:32 [INFO] data_pipeline: Loaded A08T.mat: 288 trials
+03:22:33 [INFO] data_pipeline: Loaded A09T.mat: 288 trials
+03:22:34 [INFO] data_pipeline: DataLoaders ready: train=44352, val=6336, test=6336 items
+03:22:40 [INFO] run_all: Step 2/9: Running classical baselines …
+03:22:41 [INFO] baselines: Baseline butterworth   SNR_imp=-97.18 dB  MSE=0.52293
+03:22:41 [INFO] baselines: Baseline wavelet       SNR_imp=-97.05 dB  MSE=0.50657
+03:22:41 [INFO] baselines: Baseline wiener        SNR_imp=-80.43 dB  MSE=0.01103
+03:22:41 [INFO] run_all: Step 3/9: Diffusion teacher …
+03:22:41 [INFO] run_all: Teacher params: 15,897,985
+03:22:42 [INFO] diffusion: Resuming from checkpoint: /content/drive/MyDrive/ebc_checkpoints/diffusion_teacher/latest_model.pt
+03:22:42 [INFO] diffusion: Resumed at epoch 76. Best val so far: 0.29390
+03:22:43 [INFO] benchmarking: Training curve saved to results/plots/diffusion_training.png
+03:22:43 [INFO] run_all: Step 4/9: Distillation training …
+03:22:44 [INFO] diffusion: Checkpoint loaded: /content/drive/MyDrive/ebc_checkpoints/diffusion_teacher/best_model.pt (epoch 39)
+03:22:44 [INFO] run_all:   Training student: cnn_student (3,267,310 params)
+03:22:44 [INFO] distillation: [cnn_student] Resuming from checkpoint: /content/drive/MyDrive/ebc_checkpoints/distilled/cnn_student/latest_model.pt
+03:22:44 [INFO] distillation: [cnn_student] Resumed at epoch 76. Best val so far: 0.17559
+03:22:44 [INFO] benchmarking: Training curve saved to results/plots/cnn_student_training.png
+03:22:44 [INFO] run_all:   Training student: autoencoder_student (776,289 params)
+03:22:44 [INFO] distillation: [autoencoder_student] Resuming from checkpoint: /content/drive/MyDrive/ebc_checkpoints/distilled/autoencoder_student/latest_model.pt
+03:22:44 [INFO] distillation: [autoencoder_student] Resumed at epoch 63. Best val so far: 0.15344
+03:30:05 [INFO] distillation: [autoencoder_student] Epoch   63/75 | train=0.14179 | val=0.20316
+03:30:05 [INFO] distillation: [autoencoder_student] Saved latest checkpoint at epoch 63 to Drive.
+03:30:05 [INFO] distillation: Early stop [autoencoder_student] at epoch 63.
+03:30:06 [INFO] benchmarking: Training curve saved to results/plots/autoencoder_student_training.png
+03:30:06 [INFO] run_all:   Training student: consistency_student (165,507 params)
+03:30:06 [INFO] distillation: [consistency_student] Resuming from checkpoint: /content/drive/MyDrive/ebc_checkpoints/distilled/consistency_student/latest_model.pt
+03:30:06 [INFO] distillation: [consistency_student] Resumed at epoch 76. Best val so far: 0.00608
+03:30:06 [INFO] benchmarking: Training curve saved to results/plots/consistency_student_training.png
+03:30:06 [INFO] run_all: Step 5/9: ONNX export + CPU inference benchmark (FR-350) …
+03:30:08 [INFO] onnx_ir.passes.common.unused_removal: No unused functions to remove
+03:30:08 [WARNING] onnxscript.version_converter: The model version conversion is not supported by the onnxscript version converter and fallback is enabled. The model will be converted using the onnx C API (target version: 17).
+03:30:08 [INFO] onnx_ir.passes.common.unused_removal: No unused functions to remove
+03:30:08 [INFO] onnxscript.optimizer._constant_folding: Skipping constant folding for node 'node_Shape_0' because it is graph input to preserve graph signature
+03:30:08 [INFO] onnxscript.optimizer._constant_folding: Skipping constant folding for node 'node_conv1d' because it is graph input to preserve graph signature
+03:30:08 [INFO] onnx_ir.passes.common.unused_removal: Removed 4 unused nodes
+03:30:08 [INFO] onnxscript.rewriter: Applied 1 of general pattern rewrite rules.
+03:30:08 [INFO] onnx_ir.passes.common.unused_removal: No unused functions to remove
+03:30:08 [INFO] onnxscript.optimizer._constant_folding: Skipping constant folding for node 'node_Shape_0' because it is graph input to preserve graph signature
+03:30:08 [INFO] onnxscript.optimizer._constant_folding: Skipping constant folding for node 'node_conv1d' because it is graph input to preserve graph signature
+03:30:08 [INFO] onnx_ir.passes.common.unused_removal: Removed 1 unused nodes
+03:30:08 [INFO] onnx_ir.passes.common.unused_removal: No unused functions to remove
+03:30:08 [INFO] distillation: ONNX model exported to models/onnx/cnn_student.onnx (0.00 MB)
+03:30:08 [WARNING] run_all: ONNX export/benchmark failed for cnn_student: onnxruntime is required. pip install onnxruntime
+03:30:10 [INFO] onnx_ir.passes.common.unused_removal: No unused functions to remove
+03:30:10 [WARNING] onnxscript.version_converter: The model version conversion is not supported by the onnxscript version converter and fallback is enabled. The model will be converted using the onnx C API (target version: 17).
+03:30:10 [WARNING] onnxscript.version_converter: Failed to convert the model to the target version 17 using the ONNX C API. The model was not modified
+Traceback (most recent call last):
+  File "/usr/local/lib/python3.12/dist-packages/onnxscript/version_converter/__init__.py", line 137, in call
+    converted_proto = _c_api_utils.call_onnx_api(
+                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/onnxscript/version_converter/_c_api_utils.py", line 65, in call_onnx_api
+    result = func(proto)
+             ^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/onnxscript/version_converter/__init__.py", line 132, in _partial_convert_version
+    return onnx.version_converter.convert_version(
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.12/dist-packages/onnx/version_converter.py", line 39, in convert_version
+    converted_model_str = C.convert_version(model_str, target_version)
+                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+RuntimeError: /project/onnx/version_converter/BaseConverter.h:64: adapter_lookup: Assertion `false` failed: No Adapter To Version $17 for Pad
+03:30:10 [INFO] onnx_ir.passes.common.unused_removal: No unused functions to remove
+03:30:10 [INFO] onnxscript.optimizer._constant_folding: Skipping constant folding for node 'node_Shape_0' because it is graph input to preserve graph signature
+03:30:10 [INFO] onnxscript.optimizer._constant_folding: Skipping constant folding for node 'node_conv1d' because it is graph input to preserve graph signature
+03:30:10 [INFO] onnx_ir.passes.common.unused_removal: Removed 5 unused nodes
+03:30:10 [INFO] onnxscript.rewriter: Applied 2 of general pattern rewrite rules.
+03:30:10 [INFO] onnx_ir.passes.common.unused_removal: No unused functions to remove
+03:30:10 [INFO] onnxscript.optimizer._constant_folding: Skipping constant folding for node 'node_Shape_0' because it is graph input to preserve graph signature
+03:30:10 [INFO] onnxscript.optimizer._constant_folding: Skipping constant folding for node 'node_conv1d' because it is graph input to preserve graph signature
+03:30:10 [INFO] onnx_ir.passes.common.unused_removal: Removed 2 unused nodes
+03:30:10 [INFO] onnx_ir.passes.common.unused_removal: No unused functions to remove
+03:30:10 [INFO] distillation: ONNX model exported to models/onnx/autoencoder_student.onnx (0.02 MB)
+03:30:10 [WARNING] run_all: ONNX export/benchmark failed for autoencoder_student: onnxruntime is required. pip install onnxruntime
+03:30:11 [INFO] onnx_ir.passes.common.unused_removal: No unused functions to remove
+03:30:11 [WARNING] onnxscript.version_converter: The model version conversion is not supported by the onnxscript version converter and fallback is enabled. The model will be converted using the onnx C API (target version: 17).
+03:30:11 [INFO] onnx_ir.passes.common.unused_removal: No unused functions to remove
+03:30:11 [INFO] onnxscript.optimizer._constant_folding: Skipping constant folding for node 'node_conv1d' because it is graph input to preserve graph signature
+03:30:11 [INFO] onnxscript.optimizer._constant_folding: Skipping constant folding for node 'node_conv1d_5' because it is graph input to preserve graph signature
+03:30:11 [INFO] onnx_ir.passes.common.unused_removal: Removed 22 unused nodes
+03:30:11 [INFO] onnx_ir.passes.common.unused_removal: No unused functions to remove
+03:30:11 [INFO] onnxscript.optimizer._constant_folding: Skipping constant folding for node 'node_conv1d' because it is graph input to preserve graph signature
+03:30:11 [INFO] onnxscript.optimizer._constant_folding: Skipping constant folding for node 'node_conv1d_5' because it is graph input to preserve graph signature
+03:30:11 [INFO] onnx_ir.passes.common.unused_removal: No unused functions to remove
+03:30:11 [INFO] onnx_ir.passes._pass_infra: PassManager: No more graph changes detected after step 1
+03:30:11 [INFO] onnx_ir.passes.common.initializer_deduplication: Replaced initializer 'val_34' with existing initializer 'val_4'
+03:30:11 [INFO] onnx_ir.passes.common.initializer_deduplication: Replaced initializer 'val_38' with existing initializer 'val_8'
+03:30:11 [INFO] onnx_ir.passes.common.initializer_deduplication: Replaced initializer 'val_41' with existing initializer 'val_11'
+03:30:11 [INFO] onnx_ir.passes.common.initializer_deduplication: Replaced initializer 'val_63' with existing initializer 'val_4'
+03:30:11 [INFO] onnx_ir.passes.common.initializer_deduplication: Replaced initializer 'val_67' with existing initializer 'val_8'
+03:30:11 [INFO] onnx_ir.passes.common.initializer_deduplication: Replaced initializer 'val_70' with existing initializer 'val_11'
+03:30:11 [INFO] onnx_ir.passes.common.initializer_deduplication: Replaced initializer 'val_92' with existing initializer 'val_4'
+03:30:11 [INFO] onnx_ir.passes.common.initializer_deduplication: Replaced initializer 'val_96' with existing initializer 'val_8'
+03:30:11 [INFO] onnx_ir.passes.common.initializer_deduplication: Replaced initializer 'val_99' with existing initializer 'val_11'
+03:30:11 [INFO] onnx_ir.passes.common.initializer_deduplication: Replaced initializer 'val_53' with existing initializer 'val_24'
+03:30:11 [INFO] onnx_ir.passes.common.initializer_deduplication: Replaced initializer 'val_56' with existing initializer 'val_27'
+03:30:11 [INFO] onnx_ir.passes.common.initializer_deduplication: Replaced initializer 'val_58' with existing initializer 'val_29'
+03:30:11 [INFO] onnx_ir.passes.common.initializer_deduplication: Replaced initializer 'val_82' with existing initializer 'val_24'
+03:30:11 [INFO] onnx_ir.passes.common.initializer_deduplication: Replaced initializer 'val_85' with existing initializer 'val_27'
+03:30:11 [INFO] onnx_ir.passes.common.initializer_deduplication: Replaced initializer 'val_87' with existing initializer 'val_29'
+03:30:11 [INFO] onnx_ir.passes.common.initializer_deduplication: Replaced initializer 'val_111' with existing initializer 'val_24'
+03:30:11 [INFO] onnx_ir.passes.common.initializer_deduplication: Replaced initializer 'val_114' with existing initializer 'val_27'
+03:30:11 [INFO] onnx_ir.passes.common.initializer_deduplication: Replaced initializer 'val_116' with existing initializer 'val_29'
+03:30:11 [INFO] distillation: ONNX model exported to models/onnx/consistency_student.onnx (0.01 MB)
+03:30:11 [WARNING] run_all: ONNX export/benchmark failed for consistency_student: onnxruntime is required. pip install onnxruntime
+03:30:11 [INFO] run_all: Step 6/9: Comprehensive latency benchmarking …
+03:30:11 [INFO] benchmarking: Benchmarking model: diffusion_10steps
+03:30:22 [INFO] benchmarking:   diffusion_10steps               mean=96.43 ms  p95=132.66 ms  RAM=0.0 MB
+03:30:22 [INFO] benchmarking: Benchmarking model: diffusion_25steps
+03:30:48 [INFO] benchmarking:   diffusion_25steps               mean=236.50 ms  p95=311.72 ms  RAM=0.0 MB
+03:30:48 [INFO] benchmarking: Benchmarking model: diffusion_50steps
+03:31:41 [INFO] benchmarking:   diffusion_50steps               mean=473.41 ms  p95=608.76 ms  RAM=0.0 MB
+03:31:41 [INFO] benchmarking: Benchmarking model: diffusion_100steps
+03:33:25 [INFO] benchmarking:   diffusion_100steps              mean=928.33 ms  p95=1182.65 ms  RAM=0.0 MB
+03:33:25 [INFO] benchmarking: Benchmarking model: diffusion_500steps
+03:42:00 [INFO] benchmarking:   diffusion_500steps              mean=4608.59 ms  p95=5312.74 ms  RAM=0.0 MB
+03:42:00 [INFO] benchmarking: Benchmarking model: cnn_student
+03:42:00 [INFO] benchmarking:   cnn_student                     mean=0.40 ms  p95=0.46 ms  RAM=0.0 MB
+03:42:00 [INFO] benchmarking: Benchmarking model: autoencoder_student
+03:42:01 [INFO] benchmarking:   autoencoder_student             mean=0.51 ms  p95=0.60 ms  RAM=0.0 MB
+03:42:01 [INFO] benchmarking: Benchmarking model: consistency_student
+03:42:01 [INFO] benchmarking:   consistency_student             mean=0.73 ms  p95=0.91 ms  RAM=0.0 MB
+03:42:01 [INFO] benchmarking: Benchmarking baseline: butterworth
+03:42:01 [INFO] benchmarking:   butterworth                     mean=0.60 ms  p95=0.69 ms  RAM=0.0 MB
+03:42:01 [INFO] benchmarking: Benchmarking baseline: wavelet
+03:42:01 [INFO] benchmarking:   wavelet                         mean=0.50 ms  p95=0.72 ms  RAM=0.0 MB
+03:42:01 [INFO] benchmarking: Benchmarking baseline: wiener
+03:42:02 [INFO] benchmarking:   wiener                          mean=0.18 ms  p95=0.20 ms  RAM=0.0 MB
+03:42:02 [INFO] benchmarking: Results saved to results/benchmark_results.csv
+03:42:02 [INFO] benchmarking: Latency comparison plot saved to results/plots/latency_comparison.png
+03:42:03 [INFO] benchmarking: Quality-latency curve saved to results/plots/quality_latency_curve.png
+03:42:03 [INFO] run_all: Step 7/9: Motor imagery classifier …
+03:42:03 [INFO] run_all: Classifier params: 48,704
+03:42:05 [INFO] classifier: Classifier Epoch    1/100 | train_loss=1.3719 | val_acc=0.385
+03:42:07 [INFO] classifier: Classifier Epoch    2/100 | train_loss=1.2008 | val_acc=0.420
+03:42:09 [INFO] classifier: Classifier Epoch    3/100 | train_loss=1.0567 | val_acc=0.448
+03:42:12 [INFO] classifier: Classifier Epoch    4/100 | train_loss=0.9699 | val_acc=0.462
+03:42:14 [INFO] classifier: Classifier Epoch    5/100 | train_loss=0.8993 | val_acc=0.476
+03:42:16 [INFO] classifier: Classifier Epoch    6/100 | train_loss=0.8304 | val_acc=0.483
+03:42:19 [INFO] classifier: Classifier Epoch    7/100 | train_loss=0.8108 | val_acc=0.431
+03:42:21 [INFO] classifier: Classifier Epoch    8/100 | train_loss=0.7623 | val_acc=0.472
+03:42:23 [INFO] classifier: Classifier Epoch    9/100 | train_loss=0.7213 | val_acc=0.472
+03:42:25 [INFO] classifier: Classifier Epoch   10/100 | train_loss=0.6903 | val_acc=0.490
+03:42:28 [INFO] classifier: Classifier Epoch   11/100 | train_loss=0.7263 | val_acc=0.431
+03:42:30 [INFO] classifier: Classifier Epoch   12/100 | train_loss=0.6899 | val_acc=0.458
+03:42:32 [INFO] classifier: Classifier Epoch   13/100 | train_loss=0.6551 | val_acc=0.476
+03:42:34 [INFO] classifier: Classifier Epoch   14/100 | train_loss=0.6498 | val_acc=0.465
+03:42:37 [INFO] classifier: Classifier Epoch   15/100 | train_loss=0.6271 | val_acc=0.448
+03:42:39 [INFO] classifier: Classifier Epoch   16/100 | train_loss=0.5970 | val_acc=0.507
+03:42:41 [INFO] classifier: Classifier Epoch   17/100 | train_loss=0.5831 | val_acc=0.497
+03:42:43 [INFO] classifier: Classifier Epoch   18/100 | train_loss=0.5723 | val_acc=0.483
+03:42:46 [INFO] classifier: Classifier Epoch   19/100 | train_loss=0.5446 | val_acc=0.476
+03:42:48 [INFO] classifier: Classifier Epoch   20/100 | train_loss=0.5473 | val_acc=0.490
+03:42:50 [INFO] classifier: Classifier Epoch   21/100 | train_loss=0.5392 | val_acc=0.486
+03:42:53 [INFO] classifier: Classifier Epoch   22/100 | train_loss=0.5262 | val_acc=0.503
+03:42:55 [INFO] classifier: Classifier Epoch   23/100 | train_loss=0.5090 | val_acc=0.521
+03:42:57 [INFO] classifier: Classifier Epoch   24/100 | train_loss=0.5043 | val_acc=0.510
+03:42:59 [INFO] classifier: Classifier Epoch   25/100 | train_loss=0.4915 | val_acc=0.531
+03:43:02 [INFO] classifier: Classifier Epoch   26/100 | train_loss=0.4883 | val_acc=0.521
+03:43:04 [INFO] classifier: Classifier Epoch   27/100 | train_loss=0.4685 | val_acc=0.490
+03:43:06 [INFO] classifier: Classifier Epoch   28/100 | train_loss=0.4573 | val_acc=0.552
+03:43:08 [INFO] classifier: Classifier Epoch   29/100 | train_loss=0.4518 | val_acc=0.545
+03:43:10 [INFO] classifier: Classifier Epoch   30/100 | train_loss=0.4611 | val_acc=0.538
+03:43:13 [INFO] classifier: Classifier Epoch   31/100 | train_loss=0.4194 | val_acc=0.510
+03:43:15 [INFO] classifier: Classifier Epoch   32/100 | train_loss=0.4164 | val_acc=0.545
+03:43:17 [INFO] classifier: Classifier Epoch   33/100 | train_loss=0.3944 | val_acc=0.552
+03:43:19 [INFO] classifier: Classifier Epoch   34/100 | train_loss=0.4004 | val_acc=0.535
+03:43:22 [INFO] classifier: Classifier Epoch   35/100 | train_loss=0.4184 | val_acc=0.552
+03:43:24 [INFO] classifier: Classifier Epoch   36/100 | train_loss=0.4171 | val_acc=0.514
+03:43:26 [INFO] classifier: Classifier Epoch   37/100 | train_loss=0.3975 | val_acc=0.549
+03:43:28 [INFO] classifier: Classifier Epoch   38/100 | train_loss=0.3760 | val_acc=0.517
+03:43:31 [INFO] classifier: Classifier Epoch   39/100 | train_loss=0.3703 | val_acc=0.552
+03:43:33 [INFO] classifier: Classifier Epoch   40/100 | train_loss=0.3850 | val_acc=0.559
+03:43:35 [INFO] classifier: Classifier Epoch   41/100 | train_loss=0.3521 | val_acc=0.549
+03:43:37 [INFO] classifier: Classifier Epoch   42/100 | train_loss=0.3466 | val_acc=0.549
+03:43:40 [INFO] classifier: Classifier Epoch   43/100 | train_loss=0.3395 | val_acc=0.556
+03:43:42 [INFO] classifier: Classifier Epoch   44/100 | train_loss=0.3449 | val_acc=0.545
+03:43:44 [INFO] classifier: Classifier Epoch   45/100 | train_loss=0.3333 | val_acc=0.552
+03:43:46 [INFO] classifier: Classifier Epoch   46/100 | train_loss=0.3284 | val_acc=0.556
+03:43:49 [INFO] classifier: Classifier Epoch   47/100 | train_loss=0.3314 | val_acc=0.562
+03:43:51 [INFO] classifier: Classifier Epoch   48/100 | train_loss=0.3338 | val_acc=0.542
+03:43:53 [INFO] classifier: Classifier Epoch   49/100 | train_loss=0.3239 | val_acc=0.583
+03:43:55 [INFO] classifier: Classifier Epoch   50/100 | train_loss=0.2926 | val_acc=0.559
+03:43:58 [INFO] classifier: Classifier Epoch   51/100 | train_loss=0.3026 | val_acc=0.573
+03:44:00 [INFO] classifier: Classifier Epoch   52/100 | train_loss=0.2974 | val_acc=0.566
+03:44:02 [INFO] classifier: Classifier Epoch   53/100 | train_loss=0.3122 | val_acc=0.559
+03:44:04 [INFO] classifier: Classifier Epoch   54/100 | train_loss=0.2933 | val_acc=0.566
+03:44:07 [INFO] classifier: Classifier Epoch   55/100 | train_loss=0.2900 | val_acc=0.566
+03:44:09 [INFO] classifier: Classifier Epoch   56/100 | train_loss=0.2764 | val_acc=0.573
+03:44:11 [INFO] classifier: Classifier Epoch   57/100 | train_loss=0.2836 | val_acc=0.552
+03:44:13 [INFO] classifier: Classifier Epoch   58/100 | train_loss=0.2683 | val_acc=0.556
+03:44:16 [INFO] classifier: Classifier Epoch   59/100 | train_loss=0.2713 | val_acc=0.559
+03:44:18 [INFO] classifier: Classifier Epoch   60/100 | train_loss=0.2776 | val_acc=0.566
+03:44:20 [INFO] classifier: Classifier Epoch   61/100 | train_loss=0.2540 | val_acc=0.556
+03:44:22 [INFO] classifier: Classifier Epoch   62/100 | train_loss=0.2623 | val_acc=0.562
+03:44:25 [INFO] classifier: Classifier Epoch   63/100 | train_loss=0.2651 | val_acc=0.562
+03:44:27 [INFO] classifier: Classifier Epoch   64/100 | train_loss=0.2629 | val_acc=0.576
+03:44:29 [INFO] classifier: Classifier Epoch   65/100 | train_loss=0.2470 | val_acc=0.569
+03:44:31 [INFO] classifier: Classifier Epoch   66/100 | train_loss=0.2448 | val_acc=0.566
+03:44:34 [INFO] classifier: Classifier Epoch   67/100 | train_loss=0.2289 | val_acc=0.569
+03:44:36 [INFO] classifier: Classifier Epoch   68/100 | train_loss=0.2546 | val_acc=0.566
+03:44:38 [INFO] classifier: Classifier Epoch   69/100 | train_loss=0.2518 | val_acc=0.545
+03:44:38 [INFO] classifier: Classifier early stop at epoch 69.
+03:44:38 [INFO] benchmarking: Training curve saved to results/plots/classifier_training.png
+03:44:38 [INFO] run_all: Classifier test accuracy: 0.483
+03:44:39 [INFO] classifier: Confusion matrix saved to results/plots/confusion_matrix_classifier.png
+03:44:39 [INFO] run_all: Step 8/9: Closed-loop BCI simulation …
+03:44:39 [INFO] classifier: Closed-loop: acc=0.319, mean_lat=2.0 ms, artifact_rate=0.00
+03:44:40 [INFO] classifier: Closed-loop: acc=0.319, mean_lat=2.9 ms, artifact_rate=0.00
+03:44:44 [INFO] classifier: Closed-loop: acc=0.302, mean_lat=13.4 ms, artifact_rate=0.00
+03:44:44 [INFO] classifier: Denoising impact plot saved to results/plots/denoising_impact.png
+03:44:44 [INFO] benchmarking: Results saved to results/closed_loop_impact.csv
+03:44:44 [INFO] run_all: Step 9/9: Generating summary …
+03:44:44 [INFO] run_all: ============================================================
+03:44:44 [INFO] run_all: ALL EXPERIMENTS COMPLETE.
+03:44:44 [INFO] run_all: Results saved to: results/
+03:44:44 [INFO] run_all: Plots saved to:   results/plots/
+03:44:44 [INFO] run_all: Models saved to:  models/
+03:44:44 [INFO] run_all: ============================================================
