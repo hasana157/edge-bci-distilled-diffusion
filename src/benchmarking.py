@@ -241,9 +241,18 @@ def save_results_csv(results: List[dict], path: str) -> None:
     if not results:
         return
 
-    fieldnames = list(results[0].keys())
+    # Collect ALL keys from ALL result dicts to avoid missing-field errors
+    all_keys: list = []
+    seen: set = set()
+    for row in results:
+        for k in row.keys():
+            if k not in seen:
+                all_keys.append(k)
+                seen.add(k)
+    fieldnames = all_keys
+
     with open(path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         writer.writeheader()
         writer.writerows(results)
 
