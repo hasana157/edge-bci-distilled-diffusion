@@ -48,8 +48,8 @@ document.addEventListener("DOMContentLoaded", () => {
     dropzone.addEventListener("click", () => fileInput.click());
     
     fileInput.addEventListener("change", (e) => {
-        const file = e.target.files[0];
-        if (file) handleONNXFile(file);
+        const files = Array.from(e.target.files || []);
+        if (files.length > 0) handleONNXFiles(files);
     });
 
     // Drag and Drop
@@ -65,11 +65,11 @@ document.addEventListener("DOMContentLoaded", () => {
     dropzone.addEventListener("drop", (e) => {
         e.preventDefault();
         dropzone.classList.remove("dragover");
-        const file = e.dataTransfer.files[0];
-        if (file && file.name.endsWith(".onnx")) {
-            handleONNXFile(file);
+        const files = Array.from(e.dataTransfer.files || []);
+        if (files.some((file) => file.name.endsWith(".onnx"))) {
+            handleONNXFiles(files);
         } else {
-            alert("Please drop a valid .onnx model file.");
+            alert("Please drop a valid .onnx model file. Include the matching .onnx.data file if the model uses external weights.");
         }
     });
 
@@ -196,20 +196,42 @@ function generateEEGData() {
 // 4. ONNX Model Loader
 // ─────────────────────────────────────────────────────────────────────────────
 
-async function handleONNXFile(file) {
+async function handleONNXFiles(files) {
+    const modelFile = files.find((file) => file.name.endsWith(".onnx"));
+    const externalDataFiles = files.filter((file) => file.name.endsWith(".onnx.data") || file.name.endsWith(".data"));
+
+    if (!modelFile) {
+        alert("Please select a valid .onnx model file.");
+        return;
+    }
+
     statusText.textContent = "Loading ONNX model into WebAssembly...";
     statusText.style.color = "var(--neon-orange)";
     
     try {
-        const arrayBuffer = await file.arrayBuffer();
-        onnxSession = await ort.InferenceSession.create(arrayBuffer);
+        const arrayBuffer = await modelFile.arrayBuffer();
+        const sessionOptions = {
+            executionProviders: ["wasm"]
+        };
+
+        if (externalDataFiles.length > 0) {
+            sessionOptions.externalData = await Promise.all(
+                externalDataFiles.map(async (file) => ({
+                    path: file.name,
+                    data: new Uint8Array(await file.arrayBuffer())
+                }))
+            );
+        }
+
+        onnxSession = await ort.InferenceSession.create(arrayBuffer, sessionOptions);
         
-        statusText.textContent = `✅ Active: ${file.name}`;
+        const dataSuffix = externalDataFiles.length > 0 ? ` + ${externalDataFiles.length} data file(s)` : "";
+        statusText.textContent = `Active: ${modelFile.name}${dataSuffix}`;
         statusText.style.color = "var(--neon-green)";
         dropzone.style.borderColor = "var(--neon-green)";
     } catch (err) {
         console.error(err);
-        statusText.textContent = "❌ Error: Failed to load ONNX model.";
+        statusText.textContent = "Error: Failed to load ONNX model. Select both .onnx and .onnx.data if present.";
         statusText.style.color = "var(--neon-red)";
         onnxSession = null;
     }

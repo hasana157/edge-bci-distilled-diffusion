@@ -1,0 +1,12 @@
+model,p95_latency_ms,throughput_sps,peak_ram_mb,peak_vram_mb
+diffusion_10steps,132.6586,10.3698,0.0205,81.832
+diffusion_25steps,311.7248,4.2283,0.0237,81.832
+diffusion_50steps,608.7579,2.1123,0.0211,81.832
+diffusion_100steps,1182.6457,1.0772,0.0202,81.832
+diffusion_500steps,5312.7373,0.217,0.0238,81.832
+cnn_student,0.4567,2499.4022,0.0036,91.7705
+autoencoder_student,0.5961,1969.8503,0.003,97.8662
+consistency_student,0.9096,1370.5359,0.0034,99.1685
+butterworth,0.6882,1662.0981,0.0298,
+wavelet,0.7222,2006.5351,0.0167,
+wiener,0.2037,5566.8631,0.0197,

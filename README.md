@@ -139,6 +139,7 @@ Key reproducibility controls:
 
 ## Documentation
 
+- [TECHNICAL_REPORT.tex](TECHNICAL_REPORT.tex): IEEE-style technical report source with architecture, methodology, results, dashboard, deployment, and references.
 - [ARCHITECTURE.md](ARCHITECTURE.md): module map and data flow.
 - [METHODOLOGY.md](METHODOLOGY.md): research design, metrics, and limitations.
 - [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md): ONNX export, quantization, and edge runtime notes.
