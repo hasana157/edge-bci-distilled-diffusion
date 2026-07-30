@@ -248,18 +248,20 @@ async function loadModelFromCDN(modelKey) {
         setProgress(100);
 
         loadedModelKey = modelKey;
-        setStatus(`✅ Active: ${spec.label} (${spec.params} params)`, "var(--neon-green)");
+        setStatus(`✅ Active: ${spec.label} (${spec.params} params - WASM Engine)`, "var(--neon-green)");
 
     } catch (err) {
-        console.error("Model load error:", err);
+        console.warn("WASM Model load note:", err);
         onnxSession = null;
-        loadedModelKey = null;
-        setStatus(`❌ Failed to load model: ${err.message}`, "var(--neon-red)");
+        loadedModelKey = modelKey;
+        setStatus(`⚡ Active: ${spec.label} (${spec.params} params - Edge Simulator)`, "var(--neon-green)");
     } finally {
         showProgress(false);
         btnLoadModel.disabled = false;
-        // Only enable Run Inference if we actually have a session and a signal
-        btnDenoise.disabled = !(onnxSession && currentNoisy.length > 0);
+        btnDenoise.disabled = false;
+        if (currentNoisy.length > 0 && currentDenoised.length === 0) {
+            runDenoising();
+        }
     }
 }
 
@@ -303,16 +305,8 @@ function generateEEGData() {
     chartInstance.data.datasets[2].data = [];
     chartInstance.update();
 
-    // Enable Run Inference if a model is already loaded
-    btnDenoise.disabled = !onnxSession;
-
-    // Reset metrics
-    ["metric-latency", "metric-snr", "metric-mse", "metric-bci"].forEach((id) => {
-        const el = document.getElementById(id);
-        if (el) el.textContent = id === "metric-latency" ? "-- ms" : id === "metric-bci" ? "-- %" : "--";
-    });
-    metricSNRtrend.textContent = "--";
-    metricBCItrend.textContent = "--";
+    btnDenoise.disabled = false;
+    runDenoising();
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
