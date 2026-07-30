@@ -25,24 +25,24 @@ let loadedModelKey = null;   // tracks which model is currently in memory
 const MODELS = {
     cnn: {
         label: "CNN Student",
-        onnxPath: "../models/onnx/cnn_student.onnx",
-        dataPath: "../models/onnx/cnn_student.onnx.data",   // external weights
+        onnxPath: "models/onnx/cnn_student.onnx",
+        dataPath: "models/onnx/cnn_student.onnx.data",   // external weights
         hasExternalData: true,
         params: "~85 K",
         targetMs: 20,
     },
     autoencoder: {
         label: "Autoencoder Student",
-        onnxPath: "../models/onnx/autoencoder_student.onnx",
-        dataPath: "../models/onnx/autoencoder_student.onnx.data",
+        onnxPath: "models/onnx/autoencoder_student.onnx",
+        dataPath: "models/onnx/autoencoder_student.onnx.data",
         hasExternalData: true,
         params: "~45 K",
         targetMs: 15,
     },
     consistency: {
         label: "Consistency Student",
-        onnxPath: "../models/onnx/consistency_student.onnx",
-        dataPath: "../models/onnx/consistency_student.onnx.data",
+        onnxPath: "models/onnx/consistency_student.onnx",
+        dataPath: "models/onnx/consistency_student.onnx.data",
         hasExternalData: true,
         params: "~160 K",
         targetMs: 10,
@@ -87,7 +87,7 @@ const metricBCItrend = document.getElementById("metric-bci-trend");
 // 1. Bootstrap
 // ─────────────────────────────────────────────────────────────────────────────
 
-document.addEventListener("DOMContentLoaded", () => {
+document.addEventListener("DOMContentLoaded", async () => {
     initChart();
 
     // Noise slider live label
@@ -112,6 +112,16 @@ document.addEventListener("DOMContentLoaded", () => {
 
     btnGenerate.addEventListener("click", generateEEGData);
     btnDenoise.addEventListener("click", runDenoising);
+
+    // Auto-select default CNN student & auto-generate initial EEG data
+    modelSelect.value = "cnn";
+    generateEEGData();
+
+    // Automatically load the pre-trained model & run initial inference for instant zero-config demo
+    await loadModelFromCDN("cnn");
+    if (currentNoisy.length > 0) {
+        runDenoising();
+    }
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
