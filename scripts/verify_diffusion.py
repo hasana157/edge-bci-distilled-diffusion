@@ -28,7 +28,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import torch
 
-sys.path.insert(0, os.path.dirname(__file__))
+sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
 from data_pipeline import load_bci_competition_data, inject_noise
 from diffusion import DiffusionConfig, GaussianDiffusion, UNet1D

@@ -26,8 +26,8 @@ import numpy as np
 import torch
 from torch.utils.data import DataLoader, TensorDataset
 
-# Allow running from any directory
-sys.path.insert(0, os.path.dirname(__file__))
+# Allow importing project modules from the top-level src/ directory
+sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
 from data_pipeline import (
     load_bci_competition_data,

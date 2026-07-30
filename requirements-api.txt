@@ -1,0 +1,10 @@
+# Runtime dependencies for the Render / Docker Flask API.
+# Intentionally excludes torch — ONNX Runtime handles all inference,
+# keeping the build image small (~200 MB vs ~2 GB with full PyTorch).
+#
+# Python: 3.10+
+
+flask==3.0.3
+gunicorn==21.2.0
+numpy==2.4.5
+onnxruntime==1.23.2

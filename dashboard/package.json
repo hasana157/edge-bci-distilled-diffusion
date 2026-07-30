@@ -1,0 +1,11 @@
+{
+  "name": "edge-bci-denoising-dashboard",
+  "version": "1.0.0",
+  "description": "Real-time EEG denoising dashboard — ONNX models run entirely in-browser via ONNX Runtime Web.",
+  "scripts": {
+    "build": "echo 'Static dashboard — no build step required'",
+    "start": "python -m http.server 3000 --directory dashboard"
+  },
+  "keywords": ["BCI", "EEG", "denoising", "ONNX", "edge-AI"],
+  "license": "MIT"
+}

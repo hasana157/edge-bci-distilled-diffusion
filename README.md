@@ -6,6 +6,18 @@ Ultra-fast distilled generative models for real-time EEG denoising on edge BCI s
 [![Tests](https://github.com/hasana157/edge-bci-distilled-diffusion/actions/workflows/ci.yml/badge.svg)](https://github.com/hasana157/edge-bci-distilled-diffusion/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
+## 🚀 Live Deployments
+
+| Platform | Link | What it does |
+|---|---|---|
+| **Vercel** (Browser Dashboard) | [edge-bci.vercel.app](https://edge-bci.vercel.app) | ONNX inference runs entirely in your browser via WebAssembly — no server, no data upload |
+| **Render** (REST API) | [edge-bci-api.onrender.com](https://edge-bci-api.onrender.com) | `POST /denoise` for batch processing, mobile app integration, or real BCI devices |
+| **Hugging Face Spaces** (Gradio Demo) | [hf.co/spaces/hasana157/edge-bci-denoising](https://huggingface.co/spaces/hasana157/edge-bci-denoising) | Interactive 3-panel denoising demo with live metrics |
+
+> **Privacy:** The Vercel dashboard and browser WASM execution mean your EEG data never leaves your device.
+
+
+
 ## Why This Exists
 
 Brain-computer interfaces (BCIs) need low-latency EEG processing. Diffusion models can denoise signals well, but standard iterative sampling is usually too slow for closed-loop interaction on edge hardware. This project compresses a diffusion teacher into lightweight student denoisers so BCI pipelines can trade a small amount of signal fidelity for large latency gains.
@@ -41,7 +53,7 @@ python -m pytest
 Run a lightweight baseline verification:
 
 ```bash
-python src/verify_baselines.py
+python scripts/verify_baselines.py
 ```
 
 Run a focused latency smoke benchmark:
@@ -53,7 +65,7 @@ python evaluation/latency_benchmark.py --device cpu --iterations 20 --warmup 5
 Run the full experiment pipeline after placing BCI Competition IV 2a `.mat` files in `data/raw/`:
 
 ```bash
-python run_all_experiments.py --device cuda --skip-sweep
+python scripts/run_all_experiments.py --device cuda --skip-sweep
 ```
 
 For CPU-only smoke training, keep epochs intentionally tiny:
@@ -75,6 +87,9 @@ edge-bci-distilled-diffusion/
 |   |-- benchmarking.py       # Latency, memory, throughput, plots
 |   |-- classifier.py         # Motor-imagery classifier and closed-loop simulator
 |   `-- metrics.py            # SNR, MSE, accuracy, kappa helpers
+|-- scripts/
+|   |-- run_all_experiments.py # Main experiment runner
+|   `-- verify_baselines.py    # Quick baseline sanity check
 |-- data/
 |   |-- raw/README.md         # Dataset download and licensing notes
 |   `-- processed/README.md   # Generated cache description

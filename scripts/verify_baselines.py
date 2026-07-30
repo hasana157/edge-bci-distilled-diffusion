@@ -20,8 +20,8 @@ import matplotlib
 matplotlib.use('Agg')   # non-interactive backend for headless environments
 import matplotlib.pyplot as plt
 
-# Add src/ to path so we can import sibling modules directly
-sys.path.insert(0, os.path.dirname(__file__))
+# Add the src/ directory to Python path so this script can import project modules
+sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
 from data_pipeline import load_bci_competition_data, inject_noise
 from baselines import apply_baseline_to_dataset

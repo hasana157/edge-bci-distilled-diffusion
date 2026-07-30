@@ -1,0 +1,52 @@
+# .dockerignore — keep the Docker build context lean
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.eggs/
+
+# Git
+.git/
+.github/
+.gitignore
+
+# Test artifacts
+.pytest_cache/
+tests/
+evaluation/
+
+# Dev tooling
+requirements-dev.txt
+pyproject.toml
+
+# Large non-runtime assets
+data/
+plots/
+results/
+report_assets/
+*.ipynb
+*.tex
+*.pdf
+
+# IDE / OS
+.vscode/
+.idea/
+*.DS_Store
+Thumbs.db
+
+# Docs (not needed at runtime)
+*.md
+AUTHORS
+LICENSE
+CHANGELOG*
+SUBMISSION*
+FAQ*
+configs/
+scripts/

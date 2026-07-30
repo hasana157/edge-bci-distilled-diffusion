@@ -3,20 +3,21 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Edge-BCI Distilled Diffusion Dashboard</title>
+    <title>EBC: Edge-BCI Denoising Dashboard | Real-Time EEG Inference</title>
+    <meta name="description" content="Real-time EEG denoising powered by knowledge-distilled diffusion models. ONNX inference runs entirely in your browser — no data ever leaves your device.">
     <link rel="stylesheet" href="style.css">
-    <!-- Google Fonts for Modern Typography -->
+    <!-- Modern Typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Space+Grotesk:wght@400;700&display=swap" rel="stylesheet">
-    <!-- ONNX Runtime Web for browser execution -->
+    <!-- ONNX Runtime Web — WebAssembly execution, no server needed -->
     <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
-    <!-- Chart.js for smooth signal visualizer -->
+    <!-- Chart.js for signal visualizer -->
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="glow-backdrop"></div>
-    
+
     <header>
         <div class="logo-container">
             <div class="pulse-indicator"></div>
@@ -26,21 +27,27 @@
     </header>
 
     <main class="dashboard-grid">
-        <!-- Left Panel: Controls & Ingestion -->
+        <!-- Left Panel: Controls -->
         <section class="control-panel glass">
             <h2>Model Configuration</h2>
-            
+
+            <!-- Model Selector (replaces drag-drop zone) -->
             <div class="control-group">
-                <label>Active Denoising Engine</label>
-                <div class="model-dropzone" id="model-dropzone">
-                    <svg class="upload-icon" viewBox="0 0 24 24">
-                        <path d="M19.35 10.04C18.67 6.59 15.64 4 12 4 9.11 4 6.6 5.64 5.35 8.04 2.34 8.36 0 10.91 0 14c0 3.31 2.69 6 6 6h13c2.76 0 5-2.24 5-5 0-2.64-2.05-4.78-4.65-4.96zM14 13v4h-4v-4H7l5-5 5 5h-3z"/>
-                    </svg>
-                    <p class="dropzone-text">Drag & drop your <strong>.onnx</strong> model files here</p>
-                    <span class="dropzone-subtext">Use .onnx plus .onnx.data when exported with external weights</span>
-                    <input type="file" id="model-file-input" accept=".onnx,.data" multiple style="display: none;">
+                <label for="model-select">Active Denoising Engine</label>
+                <select id="model-select">
+                    <option value="">— Select a model —</option>
+                    <option value="cnn">CNN Student (~85K params, target &lt;20ms)</option>
+                    <option value="autoencoder">Autoencoder Student (~45K params, target &lt;15ms)</option>
+                    <option value="consistency">Consistency Student (~160K params, target &lt;10ms)</option>
+                </select>
+                <!-- Load button + progress indicator -->
+                <div class="model-load-row">
+                    <button id="btn-load-model" class="btn load-btn" disabled>Load Model</button>
+                    <div class="load-progress" id="load-progress" style="display:none;">
+                        <div class="progress-bar" id="progress-bar"></div>
+                    </div>
                 </div>
-                <div class="model-status" id="model-status">Status: Using Fallback Engine</div>
+                <div class="model-status" id="model-status">Status: No model loaded — select one above</div>
             </div>
 
             <div class="control-group">
@@ -62,6 +69,9 @@
                 <button id="btn-generate" class="btn primary">Generate Simulated EEG</button>
                 <button id="btn-denoise" class="btn secondary" disabled>Run Edge Inference</button>
             </div>
+
+            <!-- Privacy note -->
+            <p class="privacy-note">🔒 Inference runs entirely in your browser via WebAssembly.<br>No signal data is ever sent to a server.</p>
         </section>
 
         <!-- Right Panel: Visualizer & Metrics -->
@@ -70,7 +80,7 @@
             <div class="chart-container">
                 <canvas id="eegChart"></canvas>
             </div>
-            
+
             <div class="metrics-grid">
                 <div class="metric-card">
                     <span class="metric-label">Inference Latency</span>
@@ -97,9 +107,9 @@
     </main>
 
     <footer>
-        <p>Edge-BCI Distilled Diffusion | Developed for BCI Edge Denoising Systems Research</p>
+        <p>Edge-BCI Distilled Diffusion | Inference powered by <strong>ONNX Runtime Web</strong> · Models served via <strong>Vercel CDN</strong> · <a href="https://github.com/hasana157/edge-bci-distilled-diffusion" target="_blank" rel="noopener">View source on GitHub</a></p>
     </footer>
 
-    <script src="app.js?v=onnx-external-data"></script>
+    <script src="app.js"></script>
 </body>
 </html>

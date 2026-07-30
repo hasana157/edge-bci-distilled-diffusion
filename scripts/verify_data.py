@@ -1,5 +1,8 @@
+import os
+import sys
 import numpy as np
 import pytest
+sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 from data_pipeline import (
     load_bci_competition_data,
     preprocess_pipeline,

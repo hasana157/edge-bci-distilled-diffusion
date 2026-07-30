@@ -167,48 +167,67 @@ input[type="range"] {
     outline: none;
 }
 
-/* Drag and Drop Zone */
-.model-dropzone {
-    border: 2px dashed rgba(255, 255, 255, 0.15);
-    border-radius: 12px;
-    padding: 1.5rem 1rem;
-    text-align: center;
-    background: rgba(255, 255, 255, 0.01);
+/* Model Load Row */
+.model-load-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 10px;
+}
+
+.btn.load-btn {
+    flex-shrink: 0;
+    padding: 8px 18px;
+    background: linear-gradient(135deg, #6366f1 0%, #4338ca 100%);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-weight: 600;
+    font-family: inherit;
     cursor: pointer;
     transition: all 0.3s ease;
+    box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
 }
 
-.model-dropzone:hover {
-    border-color: var(--neon-blue);
-    background: rgba(59, 130, 246, 0.05);
+.btn.load-btn:hover:not(:disabled) {
+    box-shadow: 0 6px 20px rgba(99, 102, 241, 0.5);
+    transform: translateY(-1px);
 }
 
-.model-dropzone.dragover {
-    border-color: var(--neon-green);
-    background: rgba(16, 185, 129, 0.1);
+.btn.load-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+    box-shadow: none;
+    transform: none;
 }
 
-.upload-icon {
-    width: 36px;
-    height: 36px;
-    fill: var(--neon-blue);
-    margin-bottom: 10px;
-    transition: transform 0.3s ease;
+/* Progress Bar */
+.load-progress {
+    flex: 1;
+    height: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    overflow: hidden;
 }
 
-.model-dropzone:hover .upload-icon {
-    transform: translateY(-4px);
+.progress-bar {
+    height: 100%;
+    width: 0%;
+    background: linear-gradient(90deg, var(--neon-blue), var(--neon-green));
+    border-radius: 3px;
+    transition: width 0.4s ease;
 }
 
-.dropzone-text {
-    font-size: 0.9rem;
-    color: var(--text-primary);
-    margin-bottom: 4px;
-}
-
-.dropzone-subtext {
+/* Privacy note */
+.privacy-note {
+    margin-top: 1.5rem;
     font-size: 0.75rem;
     color: var(--text-secondary);
+    line-height: 1.6;
+    padding: 10px 12px;
+    border: 1px solid rgba(255,255,255,0.06);
+    border-radius: 8px;
+    background: rgba(255,255,255,0.02);
 }
 
 .model-status {

@@ -37,8 +37,8 @@ import sys
 import numpy as np
 import torch
 
-# ── add src/ to path so imports work from project root ──────────────────────
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
+# ── add src/ to path so imports work from the project root ──────────────
+sys.path.insert(0, os.path.normpath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
 from config import Config
 from data_pipeline import build_dataloaders, build_classifier_dataloaders

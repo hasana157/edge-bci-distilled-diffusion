@@ -1,0 +1,7 @@
+# Hugging Face Spaces requirements for the Edge-BCI Gradio demo.
+# Python: 3.10+
+
+gradio==4.44.0
+numpy==2.4.5
+onnxruntime==1.23.2
+matplotlib==3.9.3
